@@ -17,7 +17,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { FinancialGoal, GoalIconKey } from "@/types";
 import { goalIconKeys } from "@/types";
-import { Icons } from "@/components/icons"; // Corrected import
+import { Icons } from "@/components/icons"; // Ensure this is a named import
 import { useState, type ReactNode } from "react";
 import { Loader2, CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";

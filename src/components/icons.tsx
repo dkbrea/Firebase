@@ -34,15 +34,15 @@ export const Icons = {
   Debts: Target,
   Recurring: CalendarClock,
   Budget: ClipboardList,
-  Goals: Flag,
-  Investments: TrendingUp,
+  Goals: Flag, // Main Goals navigation icon
+  Investments: TrendingUp, // Main Investments navigation icon & used as a specific goal icon
   Reports: BarChart3,
   Auth: Users,
   Logout: LogOut,
   Settings: Settings,
   Bank: Landmark,
   Wallet: Wallet,
-  Primary: ShieldCheck,
+  Primary: ShieldCheck, // Used as a specific goal icon & for primary account badge
   Edit: Edit,
   Delete: Trash,
   DollarSign: DollarSign,
@@ -77,9 +77,9 @@ export const Icons = {
   ),
   DebtTypeOther: HelpCircle,
   TrendingDown: TrendingDown,
-  // TrendingUp is already assigned to Investments
   ReceiptText: ReceiptText,
-  // Goal specific icons
+
+  // Goal specific icons - ensuring they are directly keyed as expected by AddGoalDialog
   GoalDefault: CircleDollarSign,
   Home: Home,
   Car: Car,
@@ -87,15 +87,15 @@ export const Icons = {
   Briefcase: Briefcase,
   GraduationCap: GraduationCap,
   Gift: Gift,
-  // PiggyBank is already assigned (Accounts, AccountTypeSavings)
-  // ShieldCheck is already assigned (Primary)
-  // TrendingUp is already assigned (Investments)
+  PiggyBank: PiggyBank, // This one is fine
+  ShieldCheck: ShieldCheck, // Ensure this is directly available as Icons.ShieldCheck
+  TrendingUp: TrendingUp,   // Ensure this is directly available as Icons.TrendingUp
 
   // Investment Account Type Icons
   InvestmentBrokerage: LineChart,
-  InvestmentRetirement: BarChartBig,
+  InvestmentRetirement: BarChartBig, // Renamed import
   InvestmentCrypto: Coins,
-  InvestmentOther: DollarSign,
+  InvestmentOther: DollarSign, // Reusing DollarSign,
   RefreshCw: RefreshCw,
   Settings2: Settings2,
   Clock: Clock,
@@ -118,4 +118,4 @@ export const Icons = {
   ArrowRight: ArrowRight,
 };
 
-export default Icons;
+export default Icons; // Keep this default export if it's used elsewhere, but ensure named imports for { Icons }
