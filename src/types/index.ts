@@ -135,11 +135,11 @@ export interface UnifiedRecurringListItem {
 }
 
 // Budgeting Types
-export interface BudgetCategory {
+export interface BudgetCategory { // Represents user-defined variable expense categories
   id: string;
   name: string;
-  budgetedAmount: number;
-  userId: string; // Assuming categories are user-specific
+  budgetedAmount: number; // Default monthly budgeted amount
+  userId: string;
   createdAt: Date;
 }
 
@@ -161,4 +161,41 @@ export interface FinancialGoal {
 export interface FinancialGoalWithContribution extends FinancialGoal {
   monthlyContribution: number;
   monthsRemaining: number;
+}
+
+// Budget Forecast Types
+export interface MonthlyForecastVariableExpense {
+  id: string; // BudgetCategory id
+  name: string;
+  // baseBudgetedAmount: number; // The default from BudgetCategory
+  monthSpecificAmount: number; // Editable amount for this specific month, initialized with baseBudgetedAmount
+}
+
+export interface MonthlyForecastGoalContribution {
+  id: string; // FinancialGoal id
+  name: string;
+  // baseProjectedContribution: number; // The default calculated contribution
+  monthSpecificContribution: number; // Editable amount for this specific month, initialized with baseProjectedContribution
+}
+
+export interface MonthlyForecast {
+  month: Date; // First day of the month
+  monthLabel: string; // e.g., "January 2024"
+  totalIncome: number;
+  totalFixedExpenses: number; // Original fixed expenses (RecurringItem type 'fixed-expense')
+  totalSubscriptions: number; // Original subscriptions (RecurringItem type 'subscription')
+  totalDebtMinimumPayments: number; // Minimum payments from DebtAccount
+  
+  // These will store the sum of month-specific amounts for display
+  // The editable versions will be lists within the card.
+  totalVariableExpenses: number; // Sum of monthSpecificAmount for all variable categories
+  totalGoalContributions: number; // Sum of monthSpecificContribution for all goals
+
+  // Detailed items for potential editing (editing not in Phase 1)
+  variableExpenses: MonthlyForecastVariableExpense[];
+  goalContributions: MonthlyForecastGoalContribution[];
+  // Potentially add debtPayments array here later for additional payments.
+
+  remainingToBudget: number;
+  isBalanced: boolean;
 }
