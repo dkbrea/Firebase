@@ -27,8 +27,8 @@ export const Icons = {
   Debts: Target,
   Recurring: CalendarClock,
   Budget: ClipboardList, 
-  Goals: Flag,
-  Investments: TrendingUp, // This is the key icon for the Investments page navigation
+  Goals: Flag, // Ensured Flag is here
+  Investments: TrendingUp, 
   Reports: BarChart3, 
   Auth: Users,
   Logout: LogOut,
@@ -70,7 +70,7 @@ export const Icons = {
   ),
   DebtTypeOther: HelpCircle,
   TrendingDown: TrendingDown,
-  TrendingUp: TrendingUp, // Explicitly ensuring TrendingUp is here for the report
+  TrendingUp: TrendingUp,
   ReceiptText: ReceiptText,
   // Goal specific icons
   GoalDefault: CircleDollarSign, 
