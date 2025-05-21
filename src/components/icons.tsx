@@ -1,6 +1,13 @@
 
 import type { SVGProps } from "react";
-import { Landmark, LayoutDashboard, ListPlus, CreditCard, Users, LogOut, Settings, Wallet, PiggyBank, Library, ShieldCheck, MoreHorizontal, Edit, Trash, DollarSign, HelpCircle, CircleDollarSign, Target, TrendingDown, TrendingUp, ReceiptText, CalendarClock, ClipboardList, Flag, Home, Car, Plane, Briefcase, GraduationCap, Gift, LineChart, Coins, BarChart3, RefreshCw, Settings2, Clock, BarChartBig, Info, PieChart, Download, CalendarDays, History, FileText as FileTextIcon, Bot, Percent, Activity, Lightbulb, ListChecks, ArrowUp, ArrowRight } from 'lucide-react';
+import {
+  Landmark, LayoutDashboard, ListPlus, CreditCard, Users, LogOut, Settings, Wallet, PiggyBank, Library, ShieldCheck, MoreHorizontal, Edit, Trash, DollarSign, HelpCircle, CircleDollarSign, Target, TrendingDown, TrendingUp, ReceiptText, CalendarClock, ClipboardList, Flag, Home, Car, Plane, Briefcase, GraduationCap, Gift, LineChart, Coins, BarChart3, RefreshCw, Settings2, Clock, BarChartBig as LucideBarChartBig, Info, PieChart as LucidePieChart, Download, CalendarDays, History, FileText as FileTextIconLucide, Bot, Percent, Activity, Lightbulb, ListChecks, ArrowUp, ArrowRight
+} from 'lucide-react';
+
+// Renaming to avoid conflict if we have other components named PieChart, BarChartBig etc.
+const BarChartBig = LucideBarChartBig;
+const PieChartIcon = LucidePieChart;
+const FileText = FileTextIconLucide;
 
 export const Icons = {
   Logo: (props: SVGProps<SVGSVGElement>) => (
@@ -26,10 +33,10 @@ export const Icons = {
   Accounts: PiggyBank,
   Debts: Target,
   Recurring: CalendarClock,
-  Budget: ClipboardList, 
-  Goals: Flag, 
-  Investments: TrendingUp, 
-  Reports: BarChart3, 
+  Budget: ClipboardList,
+  Goals: Flag,
+  Investments: TrendingUp,
+  Reports: BarChart3,
   Auth: Users,
   Logout: LogOut,
   Settings: Settings,
@@ -70,35 +77,37 @@ export const Icons = {
   ),
   DebtTypeOther: HelpCircle,
   TrendingDown: TrendingDown,
-  TrendingUp: TrendingUp, // Already defined
+  // TrendingUp is already assigned to Investments
   ReceiptText: ReceiptText,
   // Goal specific icons
-  GoalDefault: CircleDollarSign, 
+  GoalDefault: CircleDollarSign,
   Home: Home,
   Car: Car,
   Plane: Plane,
   Briefcase: Briefcase,
   GraduationCap: GraduationCap,
   Gift: Gift,
-  // PiggyBank is already defined
-  // ShieldCheck is already defined
+  // PiggyBank is already assigned (Accounts, AccountTypeSavings)
+  // ShieldCheck is already assigned (Primary)
+  // TrendingUp is already assigned (Investments)
+
   // Investment Account Type Icons
   InvestmentBrokerage: LineChart,
-  InvestmentRetirement: BarChartBig, 
+  InvestmentRetirement: BarChartBig,
   InvestmentCrypto: Coins,
-  InvestmentOther: DollarSign, 
+  InvestmentOther: DollarSign,
   RefreshCw: RefreshCw,
   Settings2: Settings2,
-  Clock: Clock, 
-  BarChartBig: BarChartBig, 
+  Clock: Clock,
+  BarChartBig: BarChartBig, // Used for Reports Page and InvestmentRetirement
   Info: Info,
   // Report specific icons
-  PieChart: PieChart, 
-  Download: Download, 
-  CalendarDays: CalendarDays, 
-  History: History, 
-  FileTextIcon: FileTextIcon, 
-  LineChartIcon: LineChart,
+  PieChart: PieChartIcon, // Renamed import
+  Download: Download,
+  CalendarDays: CalendarDays,
+  History: History,
+  FileTextIcon: FileText, // Renamed import
+  LineChartIcon: LineChart, // Used for InvestmentBrokerage and Reports Page
   // New Icons for Goal & Savings Dashboard
   Bot: Bot,
   Percent: Percent,
