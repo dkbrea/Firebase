@@ -229,7 +229,7 @@ export function RecurringManager() {
               <RecurringList
                 items={unifiedList}
                 onDeleteItem={handleDeleteRecurringItem}
-                onEditItem={(itemToEdit) => { // This refers to original RecurringItem
+                onEditItem={(itemToEdit) => { 
                   console.log("Edit item:", itemToEdit);
                    toast({ title: "Edit (Coming Soon)", description: "Editing will be fully implemented later. For now, delete and re-add if needed."})
                 }}
