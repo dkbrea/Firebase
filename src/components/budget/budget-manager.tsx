@@ -1,7 +1,12 @@
 
 "use client";
 
-import type { RecurringItem, DebtAccount, BudgetCategory, FinancialGoal, FinancialGoalWithContribution, MonthlyForecast, MonthlyForecastVariableExpense, MonthlyForecastGoalContribution } from "@/types";
+import type { 
+    RecurringItem, DebtAccount, BudgetCategory, FinancialGoal, FinancialGoalWithContribution, 
+    MonthlyForecast, MonthlyForecastVariableExpense, MonthlyForecastGoalContribution,
+    MonthlyForecastIncomeItem, MonthlyForecastFixedExpenseItem, MonthlyForecastSubscriptionItem, MonthlyForecastDebtPaymentItem,
+    DebtAccountType
+} from "@/types";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { BudgetSummary } from "./budget-summary";
@@ -76,7 +81,7 @@ export function BudgetManager() {
          monthlyContribution = amountNeeded;
       }
       else {
-        monthlyContribution = amountNeeded / monthsRemaining;
+        monthlyContribution = amountNeeded / (monthsRemaining +1); // +1 for current month too
       }
       
       return {
@@ -121,14 +126,16 @@ export function BudgetManager() {
       } else {
         let baseIterationDate: Date | null = item.type === 'subscription' ? (item.lastRenewalDate ? startOfDay(new Date(item.lastRenewalDate)) : null) : (item.startDate ? startOfDay(new Date(item.startDate)) : null);
         if (!baseIterationDate || (isAfter(baseIterationDate, currentMonthEnd) && item.type !== 'subscription')) return;
+        
         let tempDate = new Date(baseIterationDate);
-        if (item.type === 'subscription') {
+        if (item.type === 'subscription') { // For subscriptions, the first occurrence is *after* last renewal
           switch (item.frequency) {
             case "daily": tempDate = addDays(tempDate, 1); break; case "weekly": tempDate = addWeeks(tempDate, 1); break;
             case "bi-weekly": tempDate = addWeeks(tempDate, 2); break; case "monthly": tempDate = addMonths(tempDate, 1); break;
             case "quarterly": tempDate = addQuarters(tempDate, 1); break; case "yearly": tempDate = addYears(tempDate, 1); break;
           }
         }
+
         while (isBefore(tempDate, currentMonthEnd) || isWithinInterval(tempDate, { start: currentMonthStart, end: currentMonthEnd })) {
           if (item.endDate && isAfter(tempDate, startOfDay(new Date(item.endDate)))) break;
           if (isWithinInterval(tempDate, { start: currentMonthStart, end: currentMonthEnd })) itemMonthlyTotal += item.amount;
@@ -150,17 +157,30 @@ export function BudgetManager() {
       let debtMonthlyTotal = 0;
       const debtCreationDate = startOfDay(new Date(debt.createdAt));
       let checkDate = setDate(currentMonthStart, debt.paymentDayOfMonth);
-      if (isBefore(checkDate, debtCreationDate) && getDate(checkDate) < getDate(debtCreationDate)) checkDate = addMonths(setDate(debtCreationDate, debt.paymentDayOfMonth),1);
-      else if (isBefore(checkDate, debtCreationDate)) checkDate = setDate(debtCreationDate, debt.paymentDayOfMonth);
+      
+      // Adjust checkDate if it's before creation or if the day has passed for the creation month.
+      if (isBefore(checkDate, debtCreationDate)) {
+          checkDate = setDate(debtCreationDate, debt.paymentDayOfMonth);
+          if (isBefore(checkDate, debtCreationDate)) { // If payment day in creation month is still before creation day
+              checkDate = addMonths(setDate(debtCreationDate, debt.paymentDayOfMonth), 1);
+          }
+      }
 
-      while (isBefore(checkDate, currentMonthEnd) || isWithinInterval(checkDate, {start: currentMonthStart, end: currentMonthEnd})) {
-        if (isWithinInterval(checkDate, { start: currentMonthStart, end: currentMonthEnd }) && (isAfter(checkDate, debtCreationDate) || isSameDay(checkDate, debtCreationDate))) { // Fixed: isWithinInterval instead of isSameDay for debtCreationDate check
+      while (isWithinInterval(checkDate, {start: currentMonthStart, end: currentMonthEnd})) {
+        if (isAfter(checkDate, debtCreationDate) || isSameDay(checkDate, debtCreationDate)) {
           debtMonthlyTotal += debt.minimumPayment;
         }
-        if (debt.paymentFrequency === "monthly" || debt.paymentFrequency === "annually" || debt.paymentFrequency === "other") break;
-        else if (debt.paymentFrequency === "bi-weekly") checkDate = addWeeks(checkDate, 2);
-        else if (debt.paymentFrequency === "weekly") checkDate = addWeeks(checkDate, 1);
-        else break;
+        // Advance checkDate based on frequency for multiple payments in a month
+        let advancedInLoop = false;
+        switch (debt.paymentFrequency) {
+          case "weekly": checkDate = addWeeks(checkDate, 1); advancedInLoop = true; break;
+          case "bi-weekly": checkDate = addWeeks(checkDate, 2); advancedInLoop = true; break;
+          case "monthly": 
+          case "annually":
+          case "other":
+          default: break; 
+        }
+        if(!advancedInLoop) break; 
       }
       calculatedDebtPayments += debtMonthlyTotal;
     });
@@ -184,27 +204,29 @@ export function BudgetManager() {
       const monthEnd = endOfMonth(monthDate);
       const monthLabel = format(monthDate, "MMMM yyyy");
 
-      let monthIncome = 0;
-      let monthFixedExpenses = 0;
-      let monthSubscriptions = 0;
-      let monthDebtMinimumPayments = 0;
+      const monthIncomeItems: MonthlyForecastIncomeItem[] = [];
+      const monthFixedExpenseItems: MonthlyForecastFixedExpenseItem[] = [];
+      const monthSubscriptionItems: MonthlyForecastSubscriptionItem[] = [];
+      const monthDebtPaymentItems: MonthlyForecastDebtPaymentItem[] = [];
 
       recurringItems.forEach(item => {
         if (item.endDate && isBefore(startOfDay(new Date(item.endDate)), monthStart)) return;
-        let itemMonthlyTotal = 0;
+        
+        let itemAmountInMonth = 0;
         if (item.frequency === 'semi-monthly') {
           if (item.semiMonthlyFirstPayDate && isWithinInterval(startOfDay(new Date(item.semiMonthlyFirstPayDate)), { start: monthStart, end: monthEnd })) {
-            if (!item.endDate || !isAfter(startOfDay(new Date(item.semiMonthlyFirstPayDate)), startOfDay(new Date(item.endDate)))) itemMonthlyTotal += item.amount;
+            if (!item.endDate || !isAfter(startOfDay(new Date(item.semiMonthlyFirstPayDate)), startOfDay(new Date(item.endDate)))) itemAmountInMonth += item.amount;
           }
           if (item.semiMonthlySecondPayDate && isWithinInterval(startOfDay(new Date(item.semiMonthlySecondPayDate)), { start: monthStart, end: monthEnd })) {
-            if (!item.endDate || !isAfter(startOfDay(new Date(item.semiMonthlySecondPayDate)), startOfDay(new Date(item.endDate)))) itemMonthlyTotal += item.amount;
+            if (!item.endDate || !isAfter(startOfDay(new Date(item.semiMonthlySecondPayDate)), startOfDay(new Date(item.endDate)))) itemAmountInMonth += item.amount;
           }
         } else {
           let baseIterationDate: Date | null = item.type === 'subscription' ? (item.lastRenewalDate ? startOfDay(new Date(item.lastRenewalDate)) : null) : (item.startDate ? startOfDay(new Date(item.startDate)) : null);
           if (!baseIterationDate || (isAfter(baseIterationDate, monthEnd) && item.type !== 'subscription')) return;
+          
           let tempDate = new Date(baseIterationDate);
-          if (item.type === 'subscription') {
-            switch (item.frequency) { /* ... advance logic ... */ 
+          if (item.type === 'subscription') { // First occurrence after last renewal
+            switch (item.frequency) {
                 case "daily": tempDate = addDays(tempDate, 1); break; case "weekly": tempDate = addWeeks(tempDate, 1); break;
                 case "bi-weekly": tempDate = addWeeks(tempDate, 2); break; case "monthly": tempDate = addMonths(tempDate, 1); break;
                 case "quarterly": tempDate = addQuarters(tempDate, 1); break; case "yearly": tempDate = addYears(tempDate, 1); break;
@@ -212,9 +234,9 @@ export function BudgetManager() {
           }
           while (isBefore(tempDate, monthEnd) || isWithinInterval(tempDate, { start: monthStart, end: monthEnd })) {
             if (item.endDate && isAfter(tempDate, startOfDay(new Date(item.endDate)))) break;
-            if (isWithinInterval(tempDate, { start: monthStart, end: monthEnd })) itemMonthlyTotal += item.amount;
+            if (isWithinInterval(tempDate, { start: monthStart, end: monthEnd })) itemAmountInMonth += item.amount;
             if (isAfter(tempDate, monthEnd) && item.frequency !== 'daily') break;
-            switch (item.frequency) { /* ... advance logic ... */
+            switch (item.frequency) {
                 case "daily": tempDate = addDays(tempDate, 1); break; case "weekly": tempDate = addWeeks(tempDate, 1); break;
                 case "bi-weekly": tempDate = addWeeks(tempDate, 2); break; case "monthly": tempDate = addMonths(tempDate, 1); break;
                 case "quarterly": tempDate = addQuarters(tempDate, 1); break; case "yearly": tempDate = addYears(tempDate, 1); break;
@@ -222,13 +244,16 @@ export function BudgetManager() {
             }
           }
         }
-        if (item.type === 'income') monthIncome += itemMonthlyTotal;
-        else if (item.type === 'fixed-expense') monthFixedExpenses += itemMonthlyTotal;
-        else if (item.type === 'subscription') monthSubscriptions += itemMonthlyTotal;
+
+        if (itemAmountInMonth > 0) {
+            if (item.type === 'income') monthIncomeItems.push({ id: item.id, name: item.name, totalAmountInMonth: itemAmountInMonth });
+            else if (item.type === 'fixed-expense') monthFixedExpenseItems.push({ id: item.id, name: item.name, totalAmountInMonth: itemAmountInMonth, categoryId: item.categoryId });
+            else if (item.type === 'subscription') monthSubscriptionItems.push({ id: item.id, name: item.name, totalAmountInMonth: itemAmountInMonth, categoryId: item.categoryId });
+        }
       });
 
       debtAccounts.forEach(debt => {
-        let debtMonthlyTotal = 0;
+        let debtAmountInMonth = 0;
         const debtCreationDate = startOfDay(new Date(debt.createdAt));
         let checkDate = setDate(monthStart, debt.paymentDayOfMonth);
         
@@ -241,22 +266,20 @@ export function BudgetManager() {
              }
         }
         
-        while(isBefore(checkDate, monthStart)) {
+        // Ensure checkDate starts within or before the current forecast month for iteration
+        while(isBefore(checkDate, monthStart) && !(debt.paymentFrequency === 'monthly' || debt.paymentFrequency === 'annually' || debt.paymentFrequency === 'other')) {
             let advanced = false;
             switch(debt.paymentFrequency) {
                 case "weekly": checkDate = addWeeks(checkDate, 1); advanced = true; break;
                 case "bi-weekly": checkDate = addWeeks(checkDate, 2); advanced = true; break;
-                case "monthly": checkDate = addMonths(checkDate, 1); advanced = true; break;
-                case "annually": checkDate = addYears(checkDate, 1); advanced = true; break;
                 default: break; 
             }
             if (!advanced) break; 
         }
 
-
         while (isWithinInterval(checkDate, {start: monthStart, end: monthEnd})) {
           if (isAfter(checkDate, debtCreationDate) || isSameDay(checkDate, debtCreationDate)) {
-            debtMonthlyTotal += debt.minimumPayment;
+            debtAmountInMonth += debt.minimumPayment;
           }
           let advancedInLoop = false;
           switch (debt.paymentFrequency) {
@@ -265,13 +288,20 @@ export function BudgetManager() {
             case "monthly": 
             case "annually":
             case "other":
-            default:
-                break; // For these, we typically only expect one payment per month or less often within this loop
+            default: break; 
           }
-          if(!advancedInLoop) break; // Break if not advancing within month, or if it's monthly/annual etc.
+          if(!advancedInLoop) break; 
         }
-        monthDebtMinimumPayments += debtMonthlyTotal;
+        if (debtAmountInMonth > 0) {
+            monthDebtPaymentItems.push({ id: debt.id, name: debt.name, totalAmountInMonth: debtAmountInMonth, debtType: debt.type });
+        }
       });
+      
+      const totalMonthIncome = monthIncomeItems.reduce((sum, item) => sum + item.totalAmountInMonth, 0);
+      const totalMonthFixedExpenses = monthFixedExpenseItems.reduce((sum, item) => sum + item.totalAmountInMonth, 0);
+      const totalMonthSubscriptions = monthSubscriptionItems.reduce((sum, item) => sum + item.totalAmountInMonth, 0);
+      const totalMonthDebtMinimumPayments = monthDebtPaymentItems.reduce((sum, item) => sum + item.totalAmountInMonth, 0);
+
 
       const forecastVariableExpenses: MonthlyForecastVariableExpense[] = variableCategories.map(vc => ({
         id: vc.id,
@@ -280,35 +310,41 @@ export function BudgetManager() {
       }));
       const monthTotalVariableExpenses = forecastVariableExpenses.reduce((sum, ve) => sum + ve.monthSpecificAmount, 0);
 
-      const forecastGoalContributions: MonthlyForecastGoalContribution[] = goals.map(goal => {
-        const targetDate = startOfDay(new Date(goal.targetDate));
-        const amountNeeded = goal.targetAmount - goal.currentAmount;
-        let baseContribution = 0;
-        if (amountNeeded > 0 && !isAfter(monthStart, targetDate)) {
-           const monthsToTargetFromForecastMonth = differenceInCalendarMonths(targetDate, monthStart);
-           if (monthsToTargetFromForecastMonth >=0) { // Changed from > 0 to >=0 to include current month if target is end of current month
-             baseContribution = amountNeeded / Math.max(1, monthsToTargetFromForecastMonth + 1); // +1 because diff is 0-indexed for months
-           } else { 
-             baseContribution = 0; 
-           }
-        }
-        return {
-          id: goal.id,
-          name: goal.name,
-          monthSpecificContribution: baseContribution > 0 ? baseContribution : 0,
-        };
-      });
+      const forecastGoalContributions: MonthlyForecastGoalContribution[] = goalsWithContributions
+        .filter(goal => goal.currentAmount < goal.targetAmount) // Only active goals
+        .map(goal => {
+            const targetDate = startOfDay(new Date(goal.targetDate));
+            const amountNeeded = goal.targetAmount - goal.currentAmount;
+            let baseContribution = 0;
+
+            if (amountNeeded > 0 && !isAfter(monthStart, targetDate)) {
+                const monthsToTargetFromForecastMonth = differenceInCalendarMonths(targetDate, monthStart);
+                if (monthsToTargetFromForecastMonth >= 0) {
+                    baseContribution = amountNeeded / Math.max(1, monthsToTargetFromForecastMonth + 1);
+                }
+            }
+            return {
+                id: goal.id,
+                name: goal.name,
+                monthSpecificContribution: baseContribution > 0 ? parseFloat(baseContribution.toFixed(2)) : 0,
+            };
+      }).filter(gc => gc.monthSpecificContribution > 0); // Only include if there's a contribution
+
       const monthTotalGoalContributions = forecastGoalContributions.reduce((sum, gc) => sum + gc.monthSpecificContribution, 0);
       
-      const remainingToBudget = monthIncome - (monthFixedExpenses + monthSubscriptions + monthDebtMinimumPayments + monthTotalVariableExpenses + monthTotalGoalContributions);
+      const remainingToBudget = totalMonthIncome - (totalMonthFixedExpenses + totalMonthSubscriptions + totalMonthDebtMinimumPayments + monthTotalVariableExpenses + monthTotalGoalContributions);
 
       newForecastData.push({
         month: monthDate,
         monthLabel,
-        totalIncome: monthIncome,
-        totalFixedExpenses: monthFixedExpenses,
-        totalSubscriptions: monthSubscriptions,
-        totalDebtMinimumPayments: monthDebtMinimumPayments,
+        incomeItems: monthIncomeItems,
+        fixedExpenseItems: monthFixedExpenseItems,
+        subscriptionItems: monthSubscriptionItems,
+        debtPaymentItems: monthDebtPaymentItems,
+        totalIncome: totalMonthIncome,
+        totalFixedExpenses: totalMonthFixedExpenses,
+        totalSubscriptions: totalMonthSubscriptions,
+        totalDebtMinimumPayments: totalMonthDebtMinimumPayments,
         variableExpenses: forecastVariableExpenses,
         totalVariableExpenses: monthTotalVariableExpenses,
         goalContributions: forecastGoalContributions,
@@ -318,7 +354,7 @@ export function BudgetManager() {
       });
     }
     setForecastData(newForecastData);
-  }, [recurringItems, debtAccounts, variableCategories, goals]);
+  }, [recurringItems, debtAccounts, variableCategories, goals, goalsWithContributions]);
 
 
   const totalBudgetedVariable = useMemo(() => {

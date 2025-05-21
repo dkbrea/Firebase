@@ -163,38 +163,63 @@ export interface FinancialGoalWithContribution extends FinancialGoal {
   monthsRemaining: number;
 }
 
-// Budget Forecast Types
+// Budget Forecast Types (Updated)
+export interface MonthlyForecastIncomeItem {
+  id: string; // Original RecurringItem ID
+  name: string;
+  totalAmountInMonth: number; // Sum of all occurrences of this income in the month
+}
+export interface MonthlyForecastFixedExpenseItem {
+  id: string; // Original RecurringItem ID
+  name: string;
+  totalAmountInMonth: number; // Sum of all occurrences of this expense in the month
+  categoryId?: PredefinedRecurringCategoryValue | null;
+}
+export interface MonthlyForecastSubscriptionItem {
+  id: string; // Original RecurringItem ID
+  name: string;
+  totalAmountInMonth: number; // Sum of all occurrences of this subscription in the month
+  categoryId?: PredefinedRecurringCategoryValue | null;
+}
+export interface MonthlyForecastDebtPaymentItem {
+  id: string; // Original DebtAccount ID
+  name: string;
+  totalAmountInMonth: number; // Sum of all minimum payments for this debt in the month
+  debtType: DebtAccountType;
+}
+
+
 export interface MonthlyForecastVariableExpense {
   id: string; // BudgetCategory id
   name: string;
-  // baseBudgetedAmount: number; // The default from BudgetCategory
   monthSpecificAmount: number; // Editable amount for this specific month, initialized with baseBudgetedAmount
 }
 
 export interface MonthlyForecastGoalContribution {
   id: string; // FinancialGoal id
   name: string;
-  // baseProjectedContribution: number; // The default calculated contribution
   monthSpecificContribution: number; // Editable amount for this specific month, initialized with baseProjectedContribution
 }
 
 export interface MonthlyForecast {
   month: Date; // First day of the month
   monthLabel: string; // e.g., "January 2024"
-  totalIncome: number;
-  totalFixedExpenses: number; // Original fixed expenses (RecurringItem type 'fixed-expense')
-  totalSubscriptions: number; // Original subscriptions (RecurringItem type 'subscription')
-  totalDebtMinimumPayments: number; // Minimum payments from DebtAccount
   
-  // These will store the sum of month-specific amounts for display
-  // The editable versions will be lists within the card.
-  totalVariableExpenses: number; // Sum of monthSpecificAmount for all variable categories
-  totalGoalContributions: number; // Sum of monthSpecificContribution for all goals
-
-  // Detailed items for potential editing (editing not in Phase 1)
+  incomeItems: MonthlyForecastIncomeItem[];
+  fixedExpenseItems: MonthlyForecastFixedExpenseItem[];
+  subscriptionItems: MonthlyForecastSubscriptionItem[];
+  debtPaymentItems: MonthlyForecastDebtPaymentItem[];
+  
+  totalIncome: number;
+  totalFixedExpenses: number; 
+  totalSubscriptions: number; 
+  totalDebtMinimumPayments: number; 
+  
   variableExpenses: MonthlyForecastVariableExpense[];
+  totalVariableExpenses: number; 
+  
   goalContributions: MonthlyForecastGoalContribution[];
-  // Potentially add debtPayments array here later for additional payments.
+  totalGoalContributions: number; 
 
   remainingToBudget: number;
   isBalanced: boolean;
