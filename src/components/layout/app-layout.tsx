@@ -26,7 +26,8 @@ const navItems: NavItem[] = [
   { href: "/accounts", label: "Accounts", icon: Icons.Accounts },
   { href: "/debts", label: "Debt Plan", icon: Icons.Debts },
   { href: "/recurring", label: "Recurring", icon: Icons.Recurring },
-  { href: "/budget", label: "Budget", icon: Icons.Budget }, // Added Budget navigation item
+  { href: "/budget", label: "Budget", icon: Icons.Budget },
+  { href: "/goals", label: "Goals", icon: Icons.Goals }, // Added Goals navigation item
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -91,9 +92,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       
       {/* Main content area and Mobile Sheet wrapper */}
       <div className="flex flex-col min-h-screen">
-        
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-          <SheetTrigger asChild>
+           <SheetTrigger asChild>
             <Button 
               variant="outline" 
               size="icon" 

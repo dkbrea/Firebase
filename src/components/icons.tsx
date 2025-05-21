@@ -1,6 +1,6 @@
 
 import type { SVGProps } from "react";
-import { Landmark, LayoutDashboard, ListPlus, CreditCard, Users, LogOut, Settings, Wallet, PiggyBank, Library, ShieldCheck, MoreHorizontal, Edit, Trash, DollarSign, HelpCircle, CircleDollarSign, Target, TrendingDown, TrendingUp, ReceiptText, CalendarClock, ClipboardList } from 'lucide-react';
+import { Landmark, LayoutDashboard, ListPlus, CreditCard, Users, LogOut, Settings, Wallet, PiggyBank, Library, ShieldCheck, MoreHorizontal, Edit, Trash, DollarSign, HelpCircle, CircleDollarSign, Target, TrendingDown, TrendingUp, ReceiptText, CalendarClock, ClipboardList, Flag, Home, Car, Plane, Briefcase, GraduationCap, Gift } from 'lucide-react';
 
 export const Icons = {
   Logo: (props: SVGProps<SVGSVGElement>) => (
@@ -26,7 +26,8 @@ export const Icons = {
   Accounts: PiggyBank,
   Debts: Target,
   Recurring: CalendarClock,
-  Budget: ClipboardList, // Added Budget icon
+  Budget: ClipboardList, 
+  Goals: Flag, // Added Goals icon
   Auth: Users,
   Logout: LogOut,
   Settings: Settings,
@@ -68,6 +69,16 @@ export const Icons = {
   TrendingDown: TrendingDown,
   TrendingUp: TrendingUp,
   ReceiptText: ReceiptText,
+  // Goal specific icons
+  GoalDefault: CircleDollarSign, // Default goal icon
+  Home: Home,
+  Car: Car,
+  Plane: Plane,
+  Briefcase: Briefcase,
+  GraduationCap: GraduationCap,
+  Gift: Gift,
+  PiggyBank: PiggyBank, // Already present
+  ShieldCheck: ShieldCheck, // Already present
 };
 
 export default Icons;

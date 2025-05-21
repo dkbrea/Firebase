@@ -142,3 +142,23 @@ export interface BudgetCategory {
   userId: string; // Assuming categories are user-specific
   createdAt: Date;
 }
+
+// Financial Goals Types
+export const goalIconKeys = ['default', 'home', 'car', 'plane', 'briefcase', 'graduation-cap', 'gift', 'piggy-bank', 'trending-up', 'shield-check'] as const;
+export type GoalIconKey = typeof goalIconKeys[number];
+
+export interface FinancialGoal {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  targetDate: Date;
+  icon: GoalIconKey;
+  userId: string;
+  createdAt: Date;
+}
+
+export interface FinancialGoalWithContribution extends FinancialGoal {
+  monthlyContribution: number;
+  monthsRemaining: number;
+}
