@@ -28,9 +28,9 @@ const mockVariableCategories: BudgetCategory[] = [
   { id: "var4", name: "Entertainment", budgetedAmount: 75, userId: "1", createdAt: new Date() },
 ];
 const mockGoals: FinancialGoal[] = [
-  { id: "goal1", name: "New Car Down Payment", targetAmount: 5000, currentAmount: 1200, targetDate: new Date(2025, 5, 1), icon: "car", userId: "1", createdAt: new Date() },
-  { id: "goal2", name: "Vacation to Hawaii", targetAmount: 3000, currentAmount: 300, targetDate: new Date(2024, 11, 15), icon: "plane", userId: "1", createdAt: new Date() },
-  { id: "goal3", name: "Emergency Fund Top-up", targetAmount: 10000, currentAmount: 8500, targetDate: new Date(2025, 0, 31), icon: "shield-check", userId: "1", createdAt: new Date() },
+  { id: "goal1", name: "New Car Down Payment", targetAmount: 5000, currentAmount: 1200, targetDate: new Date(2025, 11, 31), icon: "car", userId: "1", createdAt: new Date() },
+  { id: "goal2", name: "Vacation to Hawaii", targetAmount: 3000, currentAmount: 300, targetDate: new Date(2025, 11, 31), icon: "plane", userId: "1", createdAt: new Date() },
+  { id: "goal3", name: "Emergency Fund Top-up", targetAmount: 10000, currentAmount: 8500, targetDate: new Date(2025, 11, 31), icon: "shield-check", userId: "1", createdAt: new Date() },
 ];
 
 
@@ -253,3 +253,4 @@ export function BudgetManager() {
     </div>
   );
 }
+
