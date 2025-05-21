@@ -1,8 +1,8 @@
 
 "use client";
 
-import type { 
-    RecurringItem, DebtAccount, BudgetCategory, FinancialGoal, FinancialGoalWithContribution, 
+import type {
+    RecurringItem, DebtAccount, BudgetCategory, FinancialGoal, FinancialGoalWithContribution,
     MonthlyForecast, MonthlyForecastVariableExpense, MonthlyForecastGoalContribution,
     MonthlyForecastIncomeItem, MonthlyForecastFixedExpenseItem, MonthlyForecastSubscriptionItem, MonthlyForecastDebtPaymentItem,
     DebtAccountType
@@ -14,9 +14,9 @@ import { VariableExpenseList } from "./variable-expense-list";
 import { AddBudgetCategoryDialog } from "./add-budget-category-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BudgetForecastView } from "./budget-forecast-view";
-import { 
-  startOfMonth, endOfMonth, isWithinInterval, setDate, addDays, addWeeks, 
-  addMonths, addQuarters, addYears, getDate, startOfDay, isBefore, isAfter, 
+import {
+  startOfMonth, endOfMonth, isWithinInterval, setDate, addDays, addWeeks,
+  addMonths, addQuarters, addYears, getDate, startOfDay, isBefore, isAfter,
   differenceInCalendarMonths, isPast, format, getYear, getMonth, isSameDay
 } from "date-fns";
 
@@ -51,13 +51,17 @@ export function BudgetManager() {
   const [recurringItems, setRecurringItems] = useState<RecurringItem[]>(mockRecurringItems);
   const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>(mockDebtAccounts);
   const [variableCategories, setVariableCategories] = useState<BudgetCategory[]>(mockVariableCategories);
-  const [goals, setGoals] = useState<FinancialGoal[]>(mockGoals); 
-  
+  const [goals, setGoals] = useState<FinancialGoal[]>(mockGoals);
+
   const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false);
+
+  // Updated currentMonthSummary state to hold individual totals
   const [currentMonthSummary, setCurrentMonthSummary] = useState({
-    income: 0,
-    fixedOutflows: 0, // Fixed Expenses + Subscriptions + Debt Minimums + Goal Contributions
-    goalContributions: 0,
+    totalIncome: 0,
+    totalActualFixedExpenses: 0, // 'fixed-expense' type recurring items
+    totalSubscriptions: 0,
+    totalDebtPayments: 0,
+    totalGoalContributions: 0,
   });
 
   const [forecastData, setForecastData] = useState<MonthlyForecast[]>([]);
@@ -74,16 +78,16 @@ export function BudgetManager() {
         monthsRemaining = 0;
         monthlyContribution = 0;
       } else if (isPast(targetDate) || monthsRemaining < 0) {
-        monthsRemaining = 0; 
-        monthlyContribution = amountNeeded; 
-      } else if (monthsRemaining === 0) { 
-         monthsRemaining = 1; 
+        monthsRemaining = 0;
+        monthlyContribution = amountNeeded;
+      } else if (monthsRemaining === 0) {
+         monthsRemaining = 1;
          monthlyContribution = amountNeeded;
       }
       else {
-        monthlyContribution = amountNeeded / (monthsRemaining +1); // +1 for current month too
+        monthlyContribution = amountNeeded / (monthsRemaining + 1); // +1 for current month too
       }
-      
+
       return {
         ...goal,
         monthsRemaining: Math.max(0, monthsRemaining),
@@ -107,9 +111,9 @@ export function BudgetManager() {
     const today = new Date();
     const currentMonthStart = startOfMonth(today);
     const currentMonthEnd = endOfMonth(today);
-    
+
     let calculatedIncome = 0;
-    let calculatedFixedExpenses = 0;
+    let calculatedActualFixedExpenses = 0; // Specifically for 'fixed-expense' type
     let calculatedSubscriptions = 0;
     let calculatedDebtPayments = 0;
 
@@ -126,7 +130,7 @@ export function BudgetManager() {
       } else {
         let baseIterationDate: Date | null = item.type === 'subscription' ? (item.lastRenewalDate ? startOfDay(new Date(item.lastRenewalDate)) : null) : (item.startDate ? startOfDay(new Date(item.startDate)) : null);
         if (!baseIterationDate || (isAfter(baseIterationDate, currentMonthEnd) && item.type !== 'subscription')) return;
-        
+
         let tempDate = new Date(baseIterationDate);
         if (item.type === 'subscription') { // For subscriptions, the first occurrence is *after* last renewal
           switch (item.frequency) {
@@ -149,7 +153,7 @@ export function BudgetManager() {
         }
       }
       if (item.type === 'income') calculatedIncome += itemMonthlyTotal;
-      else if (item.type === 'fixed-expense') calculatedFixedExpenses += itemMonthlyTotal;
+      else if (item.type === 'fixed-expense') calculatedActualFixedExpenses += itemMonthlyTotal;
       else if (item.type === 'subscription') calculatedSubscriptions += itemMonthlyTotal;
     });
 
@@ -157,7 +161,7 @@ export function BudgetManager() {
       let debtMonthlyTotal = 0;
       const debtCreationDate = startOfDay(new Date(debt.createdAt));
       let checkDate = setDate(currentMonthStart, debt.paymentDayOfMonth);
-      
+
       // Adjust checkDate if it's before creation or if the day has passed for the creation month.
       if (isBefore(checkDate, debtCreationDate)) {
           checkDate = setDate(debtCreationDate, debt.paymentDayOfMonth);
@@ -175,20 +179,22 @@ export function BudgetManager() {
         switch (debt.paymentFrequency) {
           case "weekly": checkDate = addWeeks(checkDate, 1); advancedInLoop = true; break;
           case "bi-weekly": checkDate = addWeeks(checkDate, 2); advancedInLoop = true; break;
-          case "monthly": 
+          case "monthly":
           case "annually":
           case "other":
-          default: break; 
+          default: break;
         }
-        if(!advancedInLoop) break; 
+        if(!advancedInLoop) break;
       }
       calculatedDebtPayments += debtMonthlyTotal;
     });
 
     setCurrentMonthSummary({
-        income: calculatedIncome,
-        fixedOutflows: calculatedFixedExpenses + calculatedSubscriptions + calculatedDebtPayments + totalCurrentMonthGoalContributions,
-        goalContributions: totalCurrentMonthGoalContributions,
+        totalIncome: calculatedIncome,
+        totalActualFixedExpenses: calculatedActualFixedExpenses,
+        totalSubscriptions: calculatedSubscriptions,
+        totalDebtPayments: calculatedDebtPayments,
+        totalGoalContributions: totalCurrentMonthGoalContributions,
     });
   }, [recurringItems, debtAccounts, totalCurrentMonthGoalContributions]);
 
@@ -211,7 +217,7 @@ export function BudgetManager() {
 
       recurringItems.forEach(item => {
         if (item.endDate && isBefore(startOfDay(new Date(item.endDate)), monthStart)) return;
-        
+
         let itemAmountInMonth = 0;
         if (item.frequency === 'semi-monthly') {
           if (item.semiMonthlyFirstPayDate && isWithinInterval(startOfDay(new Date(item.semiMonthlyFirstPayDate)), { start: monthStart, end: monthEnd })) {
@@ -223,7 +229,7 @@ export function BudgetManager() {
         } else {
           let baseIterationDate: Date | null = item.type === 'subscription' ? (item.lastRenewalDate ? startOfDay(new Date(item.lastRenewalDate)) : null) : (item.startDate ? startOfDay(new Date(item.startDate)) : null);
           if (!baseIterationDate || (isAfter(baseIterationDate, monthEnd) && item.type !== 'subscription')) return;
-          
+
           let tempDate = new Date(baseIterationDate);
           if (item.type === 'subscription') { // First occurrence after last renewal
             switch (item.frequency) {
@@ -256,25 +262,25 @@ export function BudgetManager() {
         let debtAmountInMonth = 0;
         const debtCreationDate = startOfDay(new Date(debt.createdAt));
         let checkDate = setDate(monthStart, debt.paymentDayOfMonth);
-        
+
         if (isBefore(checkDate, debtCreationDate)) {
              checkDate = setDate(debtCreationDate, debt.paymentDayOfMonth);
-             if (isBefore(checkDate, debtCreationDate) && getMonth(checkDate) === getMonth(debtCreationDate)) { 
+             if (isBefore(checkDate, debtCreationDate) && getMonth(checkDate) === getMonth(debtCreationDate)) {
                 checkDate = addMonths(setDate(debtCreationDate, debt.paymentDayOfMonth),1);
-             } else if (isBefore(checkDate, debtCreationDate)) { 
+             } else if (isBefore(checkDate, debtCreationDate)) {
                 checkDate = setDate(debtCreationDate, debt.paymentDayOfMonth);
              }
         }
-        
+
         // Ensure checkDate starts within or before the current forecast month for iteration
         while(isBefore(checkDate, monthStart) && !(debt.paymentFrequency === 'monthly' || debt.paymentFrequency === 'annually' || debt.paymentFrequency === 'other')) {
             let advanced = false;
             switch(debt.paymentFrequency) {
                 case "weekly": checkDate = addWeeks(checkDate, 1); advanced = true; break;
                 case "bi-weekly": checkDate = addWeeks(checkDate, 2); advanced = true; break;
-                default: break; 
+                default: break;
             }
-            if (!advanced) break; 
+            if (!advanced) break;
         }
 
         while (isWithinInterval(checkDate, {start: monthStart, end: monthEnd})) {
@@ -285,24 +291,24 @@ export function BudgetManager() {
           switch (debt.paymentFrequency) {
             case "weekly": checkDate = addWeeks(checkDate, 1); advancedInLoop = true; break;
             case "bi-weekly": checkDate = addWeeks(checkDate, 2); advancedInLoop = true; break;
-            case "monthly": 
+            case "monthly":
             case "annually":
             case "other":
-            default: break; 
+            default: break;
           }
-          if(!advancedInLoop) break; 
+          if(!advancedInLoop) break;
         }
         if (debtAmountInMonth > 0) {
-            monthDebtPaymentItems.push({ 
-              id: debt.id, 
-              name: debt.name, 
-              totalAmountInMonth: debtAmountInMonth, 
+            monthDebtPaymentItems.push({
+              id: debt.id,
+              name: debt.name,
+              totalAmountInMonth: debtAmountInMonth,
               debtType: debt.type,
               additionalPayment: 0 // Initialize additional payment to 0
             });
         }
       });
-      
+
       const totalMonthIncome = monthIncomeItems.reduce((sum, item) => sum + item.totalAmountInMonth, 0);
       const totalMonthFixedExpenses = monthFixedExpenseItems.reduce((sum, item) => sum + item.totalAmountInMonth, 0);
       const totalMonthSubscriptions = monthSubscriptionItems.reduce((sum, item) => sum + item.totalAmountInMonth, 0);
@@ -338,7 +344,7 @@ export function BudgetManager() {
 
       const monthTotalGoalContributions = forecastGoalContributions.reduce((sum, gc) => sum + gc.monthSpecificContribution, 0);
       const monthTotalAdditionalDebtPayments = monthDebtPaymentItems.reduce((sum, debt) => sum + (debt.additionalPayment || 0), 0);
-      
+
       const remainingToBudget = totalMonthIncome - (totalMonthFixedExpenses + totalMonthSubscriptions + totalMonthDebtMinimumPayments + monthTotalAdditionalDebtPayments + monthTotalVariableExpenses + monthTotalGoalContributions);
 
       newForecastData.push({
@@ -372,7 +378,7 @@ export function BudgetManager() {
     const newCategory: BudgetCategory = {
       ...categoryData,
       id: `var-${Date.now()}`,
-      userId: "1", 
+      userId: "1",
       createdAt: new Date(),
     };
     setVariableCategories(prev => [...prev, newCategory]);
@@ -392,7 +398,7 @@ export function BudgetManager() {
         toast({ title: "Budget Category Deleted", description: `"${categoryToDelete.name}" removed.`, variant: "destructive" });
     }
   };
-  
+
   const updateForecastMonth = (monthIndex: number, updatedMonthData: Partial<MonthlyForecast>) => {
     setForecastData(prevData => {
         const newData = [...prevData];
@@ -402,17 +408,17 @@ export function BudgetManager() {
         currentMonth.totalVariableExpenses = currentMonth.variableExpenses.reduce((sum, ve) => sum + ve.monthSpecificAmount, 0);
         currentMonth.totalGoalContributions = currentMonth.goalContributions.reduce((sum, gc) => sum + gc.monthSpecificContribution, 0);
         const totalAdditionalDebtPayments = currentMonth.debtPaymentItems.reduce((sum, debt) => sum + (debt.additionalPayment || 0), 0);
-        
+
         currentMonth.remainingToBudget = currentMonth.totalIncome - (
             currentMonth.totalFixedExpenses +
             currentMonth.totalSubscriptions +
-            currentMonth.totalDebtMinimumPayments + 
+            currentMonth.totalDebtMinimumPayments +
             totalAdditionalDebtPayments +
             currentMonth.totalVariableExpenses +
             currentMonth.totalGoalContributions
         );
         currentMonth.isBalanced = Math.abs(currentMonth.remainingToBudget) < 0.01;
-        
+
         newData[monthIndex] = currentMonth;
         return newData;
     });
@@ -422,7 +428,7 @@ export function BudgetManager() {
     const monthToUpdate = forecastData[monthIndex];
     if (!monthToUpdate) return;
 
-    const updatedVariableExpenses = monthToUpdate.variableExpenses.map(ve => 
+    const updatedVariableExpenses = monthToUpdate.variableExpenses.map(ve =>
       ve.id === variableExpenseId ? { ...ve, monthSpecificAmount: newAmount } : ve
     );
     updateForecastMonth(monthIndex, { variableExpenses: updatedVariableExpenses });
@@ -432,7 +438,7 @@ export function BudgetManager() {
     const monthToUpdate = forecastData[monthIndex];
     if (!monthToUpdate) return;
 
-    const updatedGoalContributions = monthToUpdate.goalContributions.map(gc => 
+    const updatedGoalContributions = monthToUpdate.goalContributions.map(gc =>
       gc.id === goalId ? { ...gc, monthSpecificContribution: newAmount } : gc
     );
     updateForecastMonth(monthIndex, { goalContributions: updatedGoalContributions });
@@ -457,21 +463,23 @@ export function BudgetManager() {
           <TabsTrigger value="forecast">12-Month Forecast</TabsTrigger>
         </TabsList>
         <TabsContent value="currentMonth">
-          <BudgetSummary 
-            totalIncome={currentMonthSummary.income}
-            totalFixedOutflows={currentMonthSummary.fixedOutflows}
+          <BudgetSummary
+            totalIncome={currentMonthSummary.totalIncome}
+            totalActualFixedExpenses={currentMonthSummary.totalActualFixedExpenses}
+            totalSubscriptions={currentMonthSummary.totalSubscriptions}
+            totalDebtPayments={currentMonthSummary.totalDebtPayments}
+            totalGoalContributions={currentMonthSummary.totalGoalContributions}
             totalBudgetedVariable={totalBudgetedVariable}
-            totalGoalContributions={currentMonthSummary.goalContributions}
+            onAddCategoryClick={() => setIsAddCategoryDialogOpen(true)}
           />
-          <VariableExpenseList 
+          <VariableExpenseList
             categories={variableCategories}
             onUpdateCategoryAmount={handleUpdateVariableCategoryAmount}
             onDeleteCategory={handleDeleteVariableCategory}
-            onAddCategoryClick={() => setIsAddCategoryDialogOpen(true)}
           />
         </TabsContent>
         <TabsContent value="forecast">
-            <BudgetForecastView 
+            <BudgetForecastView
                 forecastData={forecastData}
                 onUpdateVariableAmount={handleUpdateForecastVariableAmount}
                 onUpdateGoalContribution={handleUpdateForecastGoalContribution}
@@ -479,7 +487,7 @@ export function BudgetManager() {
             />
         </TabsContent>
       </Tabs>
-      
+
       <AddBudgetCategoryDialog
         isOpen={isAddCategoryDialogOpen}
         onOpenChange={setIsAddCategoryDialogOpen}
@@ -490,3 +498,5 @@ export function BudgetManager() {
     </div>
   );
 }
+
+    

@@ -15,10 +15,10 @@ interface VariableExpenseListProps {
   categories: BudgetCategory[];
   onUpdateCategoryAmount: (categoryId: string, newAmount: number) => void;
   onDeleteCategory: (categoryId: string) => void;
-  onAddCategoryClick: () => void;
+  // onAddCategoryClick prop is removed as it's now in BudgetSummary
 }
 
-export function VariableExpenseList({ categories, onUpdateCategoryAmount, onDeleteCategory, onAddCategoryClick }: VariableExpenseListProps) {
+export function VariableExpenseList({ categories, onUpdateCategoryAmount, onDeleteCategory }: VariableExpenseListProps) {
   const { toast } = useToast();
   const [editingAmounts, setEditingAmounts] = useState<Record<string, string>>({});
 
@@ -58,23 +58,21 @@ export function VariableExpenseList({ categories, onUpdateCategoryAmount, onDele
       toast({ title: "Invalid Amount", description: "Please enter a valid non-negative number.", variant: "destructive" });
     }
   };
-  
+
   const totalBudgeted = categories.reduce((sum, cat) => sum + cat.budgetedAmount, 0);
 
   return (
-    <Card className="shadow-lg">
-      <CardHeader className="flex flex-row justify-between items-center">
+    <Card className="shadow-lg mt-6">
+      <CardHeader>
         <div>
             <CardTitle>Variable Expense Categories</CardTitle>
             <CardDescription>Allocate your remaining income to these spending categories.</CardDescription>
         </div>
-        <Button onClick={onAddCategoryClick} variant="outline">
-            <PlusCircle className="mr-2 h-4 w-4" /> Add Category
-        </Button>
+        {/* "Add Category" button is removed from here */}
       </CardHeader>
       <CardContent>
         {categories.length === 0 ? (
-          <p className="text-muted-foreground text-center py-6">No variable expense categories yet. Click "Add Category" to start.</p>
+          <p className="text-muted-foreground text-center py-6">No variable expense categories yet. Click "Add Category" in the banner above to start.</p>
         ) : (
           <Table>
             <TableHeader>
@@ -122,7 +120,6 @@ export function VariableExpenseList({ categories, onUpdateCategoryAmount, onDele
                   </TableCell>
                 </TableRow>
               ))}
-              {/* Ensure this summary row is part of TableBody or TableFooter */}
               {categories.length > 0 && (
                 <TableRow className="font-bold border-t-2 bg-muted/50">
                     <TableCell>Total Budgeted Variable Expenses</TableCell>
@@ -137,3 +134,5 @@ export function VariableExpenseList({ categories, onUpdateCategoryAmount, onDele
     </Card>
   );
 }
+
+    
