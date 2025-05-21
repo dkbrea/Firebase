@@ -40,3 +40,27 @@ export interface Account {
   userId: string;
   createdAt: Date;
 }
+
+// Debt Management Types
+export type DebtAccountType = 'credit-card' | 'student-loan' | 'personal-loan' | 'mortgage' | 'auto-loan' | 'other';
+
+export const debtAccountTypes: DebtAccountType[] = ['credit-card', 'student-loan', 'personal-loan', 'mortgage', 'auto-loan', 'other'];
+
+export interface DebtAccount {
+  id: string;
+  name: string;
+  type: DebtAccountType;
+  balance: number;
+  apr: number; // Annual Percentage Rate, e.g., 19.9 for 19.9%
+  minimumPayment: number;
+  userId: string;
+  createdAt: Date;
+}
+
+export type DebtPayoffStrategy = 'snowball' | 'avalanche';
+
+export interface DebtPlan {
+  debtAccounts: DebtAccount[];
+  strategy: DebtPayoffStrategy | null;
+  userId: string;
+}
