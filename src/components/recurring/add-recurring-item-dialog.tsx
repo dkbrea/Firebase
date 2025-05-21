@@ -162,21 +162,21 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
       form.setValue('lastRenewalDate', null);
       if (!form.getValues('semiMonthlyFirstPayDate')) form.setValue('semiMonthlyFirstPayDate', startOfDay(new Date()));
       if (!form.getValues('semiMonthlySecondPayDate')) form.setValue('semiMonthlySecondPayDate', startOfDay(new Date(new Date().setDate(new Date().getDate() + 15))));
-      form.setValue('categoryId', null); // Categories not typically for semi-monthly income
-    } else { // Other types/frequencies (e.g., income (not semi-monthly), fixed-expense (not semi-monthly))
+      form.setValue('categoryId', null); 
+    } else { 
       form.setValue('lastRenewalDate', null);
       form.setValue('semiMonthlyFirstPayDate', null);
       form.setValue('semiMonthlySecondPayDate', null);
       if (!form.getValues('startDate')) form.setValue('startDate', startOfDay(new Date()));
-       if (selectedType === 'income') { // Reset category if type becomes income
+       if (selectedType === 'income') { 
          form.setValue('categoryId', null);
        }
     }
 
     if (selectedType === 'income') {
       form.setValue('endDate', null);
-      setIsEndDatePickerOpen(false);
-      form.setValue('categoryId', null); // Also ensure category is null for income
+      setIsEndDatePickerOpen(false); // Ensure picker is closed
+      form.setValue('categoryId', null);
     }
   }, [selectedType, selectedFrequency, form]);
 
@@ -221,11 +221,14 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
   const getPrimaryDateLabel = () => {
     if (selectedType === 'income') return "Next Pay Date *";
     if (selectedType === 'fixed-expense') return "Next Due Date *";
-    return "Date Field"; // Should not be visible for subscriptions
+    // This label is for the 'startDate' field which is hidden for subscriptions and semi-monthly.
+    // So, this default won't typically be seen if logic is correct.
+    return "Primary Date Field *"; 
   };
 
   const showPrimaryDateField = selectedType !== 'subscription' && selectedFrequency !== 'semi-monthly';
   const showCategoryField = selectedType === 'subscription' || selectedType === 'fixed-expense';
+  const showEndDateField = selectedType !== 'income';
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
@@ -279,6 +282,34 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                 </FormItem>
               )}
             />
+
+            {showCategoryField && (
+                 <FormField
+                    control={form.control}
+                    name="categoryId"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Category *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || undefined}>
+                            <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a category" />
+                            </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                            {predefinedRecurringCategories.map(category => (
+                                <SelectItem key={category.value} value={category.value}>
+                                {category.label}
+                                </SelectItem>
+                            ))}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            )}
+
             <FormField
               control={form.control}
               name="amount"
@@ -317,33 +348,6 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                 </FormItem>
               )}
             />
-
-            {showCategoryField && (
-                 <FormField
-                    control={form.control}
-                    name="categoryId"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Category *</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value || undefined}>
-                            <FormControl>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select a category" />
-                            </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                            {predefinedRecurringCategories.map(category => (
-                                <SelectItem key={category.value} value={category.value}>
-                                {category.label}
-                                </SelectItem>
-                            ))}
-                            </SelectContent>
-                        </Select>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                />
-            )}
 
             {selectedType === 'subscription' && (
               <FormField
@@ -483,7 +487,7 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
               </>
             )}
             
-            {selectedType !== 'income' && (
+            {showEndDateField && (
               <FormField
                 control={form.control}
                 name="endDate"
@@ -543,3 +547,5 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
     </Dialog>
   );
 }
+
+    
