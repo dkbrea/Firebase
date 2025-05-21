@@ -93,12 +93,12 @@ interface AddEditTransactionDialogProps {
 }
 
 const detailedTypeButtonConfig: { type: TransactionDetailedType; label: string; icon: React.ElementType }[] = [
-  { type: 'variable-expense', label: 'Variable Expense', icon: ShoppingBag },
-  { type: 'fixed-expense', label: 'Fixed Expense', icon: FileText },
   { type: 'income', label: 'Income', icon: TrendingUp },
+  { type: 'fixed-expense', label: 'Fixed Expense', icon: FileText },
+  { type: 'subscription', label: 'Subscription', icon: Repeat },
+  { type: 'variable-expense', label: 'Variable Expense', icon: ShoppingBag },
   { type: 'debt-payment', label: 'Debt Payment', icon: Landmark }, 
   { type: 'goal-contribution', label: 'Goal Contribution', icon: Flag },
-  { type: 'subscription', label: 'Subscription', icon: Repeat },
 ];
 
 export function AddEditTransactionDialog({
@@ -113,7 +113,7 @@ export function AddEditTransactionDialog({
     resolver: zodResolver(formSchema),
     defaultValues: {
       date: startOfDay(new Date()),
-      detailedType: 'variable-expense',
+      detailedType: 'variable-expense', // Default to variable expense
       description: "",
       sourceId: undefined,
       amount: undefined,
@@ -182,7 +182,9 @@ export function AddEditTransactionDialog({
   useEffect(() => { 
     form.setValue('sourceId', undefined);
     form.setValue('description', '');
-    form.setValue('toAccountId', null); // Clear toAccountId when type changes
+    if (selectedDetailedType !== 'goal-contribution') {
+      form.setValue('toAccountId', null); 
+    }
     if(selectedDetailedType !== 'variable-expense') {
         form.setValue('categoryId', null);
     }
@@ -242,7 +244,7 @@ export function AddEditTransactionDialog({
         case 'fixed-expense': return "Select Fixed Expense";
         case 'subscription': return "Select Subscription";
         case 'debt-payment': return "Select Debt Account";
-        case 'goal-contribution': return "Financial Goal"; // Changed label
+        case 'goal-contribution': return "Financial Goal"; 
         default: return "Select Item";
     }
   }
@@ -314,11 +316,13 @@ export function AddEditTransactionDialog({
                             variant={field.value === config.type ? 'secondary' : 'outline'}
                             onClick={() => {
                               field.onChange(config.type);
-                              form.setValue('sourceId', undefined, {shouldValidate: true}); // Reset sourceId when type changes
+                              form.setValue('sourceId', undefined, {shouldValidate: true}); 
                               form.setValue('description', '', {shouldValidate: true});
                               form.setValue('amount', undefined, {shouldValidate: true});
                               form.setValue('categoryId', null, {shouldValidate: true});
-                              form.setValue('toAccountId', null, {shouldValidate: true});
+                              if (config.type !== 'goal-contribution') {
+                                form.setValue('toAccountId', null, {shouldValidate: true});
+                              }
                             }}
                             className={cn("w-full justify-start text-left h-auto py-2 px-3", 
                                          field.value === config.type && "ring-2 ring-primary shadow-md"
@@ -538,3 +542,4 @@ export function AddEditTransactionDialog({
     </Dialog>
   );
 }
+
