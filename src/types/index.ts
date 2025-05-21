@@ -186,6 +186,7 @@ export interface MonthlyForecastDebtPaymentItem {
   name: string;
   totalAmountInMonth: number; // Sum of all minimum payments for this debt in the month
   debtType: DebtAccountType;
+  additionalPayment?: number; // User-defined additional payment for this specific month
 }
 
 
@@ -213,7 +214,7 @@ export interface MonthlyForecast {
   totalIncome: number;
   totalFixedExpenses: number; 
   totalSubscriptions: number; 
-  totalDebtMinimumPayments: number; 
+  totalDebtMinimumPayments: number; // Sum of all minimum payments for the month
   
   variableExpenses: MonthlyForecastVariableExpense[];
   totalVariableExpenses: number; 

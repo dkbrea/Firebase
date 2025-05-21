@@ -2,16 +2,20 @@
 "use client";
 
 import * as React from "react";
-import type { MonthlyForecast } from "@/types";
+import type { MonthlyForecast, MonthlyForecastDebtPaymentItem, MonthlyForecastGoalContribution, MonthlyForecastVariableExpense } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, AlertTriangle, TrendingUp, TrendingDown, ListChecks, ShieldCheck, Info, Building, CreditCard, HandCoins } from "lucide-react";
+import { CheckCircle2, AlertTriangle, TrendingUp, TrendingDown, ListChecks, ShieldCheck, Building, CreditCard, DollarSign, Info } from "lucide-react";
 
 interface MonthlyForecastCardProps {
   monthData: MonthlyForecast;
-  monthIndex: number; // For potential future use with update handlers
+  monthIndex: number;
+  onUpdateVariableAmount: (monthIndex: number, variableExpenseId: string, newAmount: number) => void;
+  onUpdateGoalContribution: (monthIndex: number, goalId: string, newAmount: number) => void;
+  onUpdateDebtAdditionalPayment: (monthIndex: number, debtId: string, newAdditionalAmount: number) => void;
 }
 
 const formatCurrency = (amount: number) => {
@@ -19,45 +23,127 @@ const formatCurrency = (amount: number) => {
 };
 
 interface ForecastItemDisplayProps {
-    items: { name: string; totalAmountInMonth: number }[];
+    items: { name: string; totalAmountInMonth: number; [key: string]: any }[]; // Allow other properties like 'id'
     title: string;
     icon: React.ReactNode;
     emptyMessage?: string;
     itemClassName?: string;
+    monthIndex: number;
+    editableSection?: 'variable' | 'goal' | 'debtAdditional';
+    onUpdateAmount?: (monthIndex: number, itemId: string, newAmount: number) => void;
 }
 
-const ForecastItemsSection: React.FC<ForecastItemDisplayProps> = ({ items, title, icon, emptyMessage = "No items this month.", itemClassName }) => (
-    <div className="space-y-1">
-        <h4 className="font-semibold text-foreground flex items-center mb-1">
-            {icon}
-            {title}
-            <Badge variant="outline" className="ml-auto text-xs">{formatCurrency(items.reduce((sum, item) => sum + item.totalAmountInMonth, 0))}</Badge>
-        </h4>
-        {items.length > 0 ? items.map(item => (
-            <div key={item.name} className="flex justify-between items-center pl-1 text-xs">
-                <span className="text-muted-foreground truncate" title={item.name}>{item.name}</span>
-                <span className={cn("text-foreground/90", itemClassName)}>{formatCurrency(item.totalAmountInMonth)}</span>
-            </div>
-        )) : <p className="text-xs text-muted-foreground pl-1 italic">{emptyMessage}</p>}
-    </div>
-);
+const ForecastItemsSection: React.FC<ForecastItemDisplayProps> = ({ 
+    items, title, icon, emptyMessage = "No items this month.", itemClassName, 
+    monthIndex, editableSection, onUpdateAmount
+}) => {
+    
+    const [editingValues, setEditingValues] = React.useState<Record<string, string>>({});
+
+    React.useEffect(() => { // Sync local editing values when underlying items prop changes
+        const initialValues: Record<string, string> = {};
+        items.forEach(item => {
+            if (editableSection === 'variable') {
+                initialValues[item.id] = (item as MonthlyForecastVariableExpense).monthSpecificAmount.toString();
+            } else if (editableSection === 'goal') {
+                initialValues[item.id] = (item as MonthlyForecastGoalContribution).monthSpecificContribution.toString();
+            } else if (editableSection === 'debtAdditional') {
+                initialValues[item.id] = ((item as MonthlyForecastDebtPaymentItem).additionalPayment || 0).toString();
+            }
+        });
+        setEditingValues(initialValues);
+    }, [items, editableSection]);
 
 
-export function MonthlyForecastCard({ monthData, monthIndex }: MonthlyForecastCardProps) {
+    const handleInputChange = (itemId: string, value: string) => {
+        setEditingValues(prev => ({ ...prev, [itemId]: value }));
+    };
+
+    const handleInputBlur = (itemId: string) => {
+        if (!onUpdateAmount || !editableSection) return;
+        const stringValue = editingValues[itemId];
+        const numericValue = parseFloat(stringValue);
+
+        const originalItem = items.find(i => i.id === itemId);
+        let originalNumericValue: number | undefined;
+        if (originalItem) {
+             if (editableSection === 'variable') originalNumericValue = (originalItem as MonthlyForecastVariableExpense).monthSpecificAmount;
+             else if (editableSection === 'goal') originalNumericValue = (originalItem as MonthlyForecastGoalContribution).monthSpecificContribution;
+             else if (editableSection === 'debtAdditional') originalNumericValue = (originalItem as MonthlyForecastDebtPaymentItem).additionalPayment || 0;
+        }
+
+        if (!isNaN(numericValue) && numericValue >= 0) {
+            if (numericValue !== originalNumericValue) {
+                onUpdateAmount(monthIndex, itemId, numericValue);
+            }
+        } else { // Revert if invalid
+            if (originalNumericValue !== undefined) {
+                setEditingValues(prev => ({ ...prev, [itemId]: originalNumericValue!.toString() }));
+            }
+        }
+    };
+    
+    const isDebtSection = title === "Debt Payments";
+
+    return (
+        <div className="space-y-1">
+            <h4 className="font-semibold text-foreground flex items-center mb-1">
+                {icon}
+                {title}
+                <Badge variant="outline" className="ml-auto text-xs">
+                    {formatCurrency(
+                        items.reduce((sum, item) => sum + (isDebtSection ? ((item as MonthlyForecastDebtPaymentItem).totalAmountInMonth + ((item as MonthlyForecastDebtPaymentItem).additionalPayment || 0)) : item.totalAmountInMonth), 0)
+                    )}
+                </Badge>
+            </h4>
+            {items.length > 0 ? items.map(item => (
+                <div key={item.id || item.name} className="flex justify-between items-center pl-1 text-xs gap-2">
+                    <span className="text-muted-foreground truncate shrink min-w-0" title={item.name}>{item.name}</span>
+                    {editableSection ? (
+                        <Input
+                            type="number"
+                            step="0.01"
+                            value={editingValues[item.id] ?? ''}
+                            onChange={(e) => handleInputChange(item.id, e.target.value)}
+                            onBlur={() => handleInputBlur(item.id)}
+                            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                            className={cn("h-6 py-1 px-1.5 text-xs text-right w-20", itemClassName)}
+                            placeholder="0.00"
+                        />
+                    ) : isDebtSection ? (
+                         <div className="flex items-center gap-1">
+                            <span className={cn("text-foreground/90", itemClassName)}>{formatCurrency((item as MonthlyForecastDebtPaymentItem).totalAmountInMonth)}</span>
+                             <span className="text-muted-foreground text-[10px]">(Min)</span>
+                        </div>
+                    ) : (
+                        <span className={cn("text-foreground/90", itemClassName)}>{formatCurrency(item.totalAmountInMonth)}</span>
+                    )}
+                </div>
+            )) : <p className="text-xs text-muted-foreground pl-1 italic">{emptyMessage}</p>}
+        </div>
+    );
+};
+
+
+export function MonthlyForecastCard({ 
+    monthData, monthIndex, 
+    onUpdateVariableAmount, onUpdateGoalContribution, onUpdateDebtAdditionalPayment 
+}: MonthlyForecastCardProps) {
 
   return (
     <Card className="w-[380px] min-w-[380px] flex flex-col shadow-lg">
       <CardHeader className="pb-3">
         <CardTitle className="text-xl">{monthData.monthLabel}</CardTitle>
       </CardHeader>
-      <CardContent className="flex-grow space-y-3 text-sm overflow-y-auto max-h-[450px] pr-1">
+      <CardContent className="flex-grow space-y-3 text-sm overflow-y-auto max-h-[500px] pr-1">
         
         <ForecastItemsSection
             items={monthData.incomeItems}
             title="Income"
             icon={<TrendingUp className="h-5 w-5 mr-2 text-green-500" />}
-            emptyMessage="No income projected this month."
+            emptyMessage="No income projected."
             itemClassName="text-green-600"
+            monthIndex={monthIndex}
         />
         <Separator className="my-2" />
 
@@ -65,8 +151,9 @@ export function MonthlyForecastCard({ monthData, monthIndex }: MonthlyForecastCa
             items={monthData.fixedExpenseItems}
             title="Fixed Expenses"
             icon={<Building className="h-5 w-5 mr-2 text-purple-500" />}
-            emptyMessage="No fixed expenses this month."
+            emptyMessage="No fixed expenses."
             itemClassName="text-purple-600"
+            monthIndex={monthIndex}
         />
         <Separator className="my-2" />
 
@@ -74,48 +161,86 @@ export function MonthlyForecastCard({ monthData, monthIndex }: MonthlyForecastCa
             items={monthData.subscriptionItems}
             title="Subscriptions"
             icon={<CreditCard className="h-5 w-5 mr-2 text-blue-500" />}
-            emptyMessage="No subscriptions this month."
+            emptyMessage="No subscriptions."
             itemClassName="text-blue-600"
+            monthIndex={monthIndex}
         />
         <Separator className="my-2" />
         
-        <div className="space-y-1">
-            <h4 className="font-semibold text-foreground flex items-center mb-1">
-                <ListChecks className="h-5 w-5 mr-2 text-orange-500"/>
-                Variable Expenses
-                <Badge variant="outline" className="ml-auto text-xs">{formatCurrency(monthData.totalVariableExpenses)}</Badge>
-            </h4>
-            {monthData.variableExpenses.length > 0 ? monthData.variableExpenses.map(ve => (
-                <div key={ve.id} className="flex justify-between items-center pl-1 text-xs">
-                    <span className="text-muted-foreground truncate" title={ve.name}>{ve.name}</span>
-                    <span className="text-orange-600">{formatCurrency(ve.monthSpecificAmount)}</span>
-                </div>
-            )) : <p className="text-xs text-muted-foreground pl-1 italic">No variable categories budgeted.</p>}
-        </div>
+        <ForecastItemsSection
+            items={monthData.variableExpenses}
+            title="Variable Expenses"
+            icon={<ListChecks className="h-5 w-5 mr-2 text-orange-500"/>}
+            emptyMessage="No variable categories."
+            itemClassName="text-orange-600"
+            monthIndex={monthIndex}
+            editableSection="variable"
+            onUpdateAmount={onUpdateVariableAmount}
+        />
         <Separator className="my-2" />
 
-        <ForecastItemsSection
-            items={monthData.debtPaymentItems}
-            title="Debt Payments"
-            icon={<TrendingDown className="h-5 w-5 mr-2 text-red-500" />}
-            emptyMessage="No debt payments this month."
-            itemClassName="text-red-600"
-        />
+        <div className="space-y-1">
+            <h4 className="font-semibold text-foreground flex items-center mb-1">
+                <TrendingDown className="h-5 w-5 mr-2 text-red-500" />
+                Debt Payments
+                <Badge variant="outline" className="ml-auto text-xs">
+                  {formatCurrency(
+                    monthData.debtPaymentItems.reduce((sum, item) => sum + item.totalAmountInMonth + (item.additionalPayment || 0),0)
+                  )}
+                </Badge>
+            </h4>
+            {monthData.debtPaymentItems.length > 0 ? monthData.debtPaymentItems.map(dp => {
+                const [additionalPmtStr, setAdditionalPmtStr] = React.useState((dp.additionalPayment || 0).toString());
+                React.useEffect(() => setAdditionalPmtStr((dp.additionalPayment || 0).toString()), [dp.additionalPayment]);
+
+                const handleAdditionalPmtChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                    setAdditionalPmtStr(e.target.value);
+                };
+                const handleAdditionalPmtBlur = () => {
+                    const numericValue = parseFloat(additionalPmtStr);
+                    if (!isNaN(numericValue) && numericValue >= 0) {
+                        if (numericValue !== (dp.additionalPayment || 0)) {
+                           onUpdateDebtAdditionalPayment(monthIndex, dp.id, numericValue);
+                        }
+                    } else {
+                        setAdditionalPmtStr((dp.additionalPayment || 0).toString()); // Revert
+                    }
+                };
+
+                return (
+                    <div key={dp.id} className="flex justify-between items-center pl-1 text-xs gap-2">
+                        <span className="text-muted-foreground truncate shrink min-w-0 flex-1" title={dp.name}>{dp.name}</span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-red-600 min-w-[60px] text-right">{formatCurrency(dp.totalAmountInMonth)}</span>
+                            <span className="text-muted-foreground text-[10px]">(Min)</span>
+                        </div>
+                        <Input
+                            type="number"
+                            step="0.01"
+                            value={additionalPmtStr}
+                            onChange={handleAdditionalPmtChange}
+                            onBlur={handleAdditionalPmtBlur}
+                            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                            className="h-6 py-1 px-1.5 text-xs text-right w-20 text-red-600"
+                            placeholder="0.00"
+                            title="Additional Payment"
+                        />
+                    </div>
+                );
+            }) : <p className="text-xs text-muted-foreground pl-1 italic">No debt payments.</p>}
+        </div>
         <Separator className="my-2" />
         
-         <div className="space-y-1">
-            <h4 className="font-semibold text-foreground flex items-center mb-1">
-                <ShieldCheck className="h-5 w-5 mr-2 text-teal-500"/>
-                Goal Contributions
-                <Badge variant="outline" className="ml-auto text-xs">{formatCurrency(monthData.totalGoalContributions)}</Badge>
-            </h4>
-            {monthData.goalContributions.length > 0 ? monthData.goalContributions.map(gc => (
-                <div key={gc.id} className="flex justify-between items-center pl-1 text-xs">
-                    <span className="text-muted-foreground truncate" title={gc.name}>{gc.name}</span>
-                    <span className="text-teal-600">{formatCurrency(gc.monthSpecificContribution)}</span>
-                </div>
-            )) : <p className="text-xs text-muted-foreground pl-1 italic">No goals being contributed to this month.</p>}
-        </div>
+        <ForecastItemsSection
+            items={monthData.goalContributions}
+            title="Goal Contributions"
+            icon={<ShieldCheck className="h-5 w-5 mr-2 text-teal-500"/>}
+            emptyMessage="No goals being funded."
+            itemClassName="text-teal-600"
+            monthIndex={monthIndex}
+            editableSection="goal"
+            onUpdateAmount={onUpdateGoalContribution}
+        />
 
       </CardContent>
       <CardFooter className="flex flex-col items-start pt-4 border-t mt-auto bg-muted/30">
@@ -139,10 +264,6 @@ export function MonthlyForecastCard({ monthData, monthIndex }: MonthlyForecastCa
             <AlertTriangle className="mr-2 h-4 w-4" /> {monthData.remainingToBudget < 0 ? "Over Budget" : "Needs Allocation"}
           </Badge>
         )}
-         <div className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-            <Info className="h-3 w-3"/>
-            <span>Editing within forecast coming soon.</span>
-        </div>
       </CardFooter>
     </Card>
   );

@@ -293,7 +293,13 @@ export function BudgetManager() {
           if(!advancedInLoop) break; 
         }
         if (debtAmountInMonth > 0) {
-            monthDebtPaymentItems.push({ id: debt.id, name: debt.name, totalAmountInMonth: debtAmountInMonth, debtType: debt.type });
+            monthDebtPaymentItems.push({ 
+              id: debt.id, 
+              name: debt.name, 
+              totalAmountInMonth: debtAmountInMonth, 
+              debtType: debt.type,
+              additionalPayment: 0 // Initialize additional payment to 0
+            });
         }
       });
       
@@ -331,8 +337,9 @@ export function BudgetManager() {
       }).filter(gc => gc.monthSpecificContribution > 0); // Only include if there's a contribution
 
       const monthTotalGoalContributions = forecastGoalContributions.reduce((sum, gc) => sum + gc.monthSpecificContribution, 0);
+      const monthTotalAdditionalDebtPayments = monthDebtPaymentItems.reduce((sum, debt) => sum + (debt.additionalPayment || 0), 0);
       
-      const remainingToBudget = totalMonthIncome - (totalMonthFixedExpenses + totalMonthSubscriptions + totalMonthDebtMinimumPayments + monthTotalVariableExpenses + monthTotalGoalContributions);
+      const remainingToBudget = totalMonthIncome - (totalMonthFixedExpenses + totalMonthSubscriptions + totalMonthDebtMinimumPayments + monthTotalAdditionalDebtPayments + monthTotalVariableExpenses + monthTotalGoalContributions);
 
       newForecastData.push({
         month: monthDate,
@@ -374,7 +381,8 @@ export function BudgetManager() {
 
   const handleUpdateVariableCategoryAmount = (categoryId: string, newAmount: number) => {
     setVariableCategories(prev => prev.map(cat => cat.id === categoryId ? { ...cat, budgetedAmount: newAmount } : cat));
-     // Also update in forecast data for the current month if needed, or rely on re-calculation
+     // This also requires updating the *current month's default* in forecast if it's the current month,
+     // or rely on full forecast re-calculation if variableCategories changes.
   };
 
   const handleDeleteVariableCategory = (categoryId: string) => {
@@ -385,14 +393,59 @@ export function BudgetManager() {
     }
   };
   
-  // Placeholder for updating forecast data - will be implemented in Phase 2
-  const handleUpdateForecastVariableAmount = (monthIndex: number, variableExpenseId: string, newAmount: number) => {
-    // TODO: Phase 2 - Update forecastData state
-    console.log(`Update forecast: Month ${monthIndex}, VarExpense ${variableExpenseId}, Amount ${newAmount}`);
+  const updateForecastMonth = (monthIndex: number, updatedMonthData: Partial<MonthlyForecast>) => {
+    setForecastData(prevData => {
+        const newData = [...prevData];
+        const currentMonth = {...newData[monthIndex], ...updatedMonthData};
+
+        // Recalculate totals and remaining for the specific month
+        currentMonth.totalVariableExpenses = currentMonth.variableExpenses.reduce((sum, ve) => sum + ve.monthSpecificAmount, 0);
+        currentMonth.totalGoalContributions = currentMonth.goalContributions.reduce((sum, gc) => sum + gc.monthSpecificContribution, 0);
+        const totalAdditionalDebtPayments = currentMonth.debtPaymentItems.reduce((sum, debt) => sum + (debt.additionalPayment || 0), 0);
+        
+        currentMonth.remainingToBudget = currentMonth.totalIncome - (
+            currentMonth.totalFixedExpenses +
+            currentMonth.totalSubscriptions +
+            currentMonth.totalDebtMinimumPayments + 
+            totalAdditionalDebtPayments +
+            currentMonth.totalVariableExpenses +
+            currentMonth.totalGoalContributions
+        );
+        currentMonth.isBalanced = Math.abs(currentMonth.remainingToBudget) < 0.01;
+        
+        newData[monthIndex] = currentMonth;
+        return newData;
+    });
   };
+
+  const handleUpdateForecastVariableAmount = (monthIndex: number, variableExpenseId: string, newAmount: number) => {
+    const monthToUpdate = forecastData[monthIndex];
+    if (!monthToUpdate) return;
+
+    const updatedVariableExpenses = monthToUpdate.variableExpenses.map(ve => 
+      ve.id === variableExpenseId ? { ...ve, monthSpecificAmount: newAmount } : ve
+    );
+    updateForecastMonth(monthIndex, { variableExpenses: updatedVariableExpenses });
+  };
+
   const handleUpdateForecastGoalContribution = (monthIndex: number, goalId: string, newAmount: number) => {
-    // TODO: Phase 2 - Update forecastData state
-    console.log(`Update forecast: Month ${monthIndex}, Goal ${goalId}, Amount ${newAmount}`);
+    const monthToUpdate = forecastData[monthIndex];
+    if (!monthToUpdate) return;
+
+    const updatedGoalContributions = monthToUpdate.goalContributions.map(gc => 
+      gc.id === goalId ? { ...gc, monthSpecificContribution: newAmount } : gc
+    );
+    updateForecastMonth(monthIndex, { goalContributions: updatedGoalContributions });
+  };
+
+  const handleUpdateForecastDebtAdditionalPayment = (monthIndex: number, debtId: string, newAdditionalAmount: number) => {
+    const monthToUpdate = forecastData[monthIndex];
+    if (!monthToUpdate) return;
+
+    const updatedDebtPayments = monthToUpdate.debtPaymentItems.map(dp =>
+      dp.id === debtId ? { ...dp, additionalPayment: newAdditionalAmount } : dp
+    );
+    updateForecastMonth(monthIndex, { debtPaymentItems: updatedDebtPayments });
   };
 
 
@@ -422,6 +475,7 @@ export function BudgetManager() {
                 forecastData={forecastData}
                 onUpdateVariableAmount={handleUpdateForecastVariableAmount}
                 onUpdateGoalContribution={handleUpdateForecastGoalContribution}
+                onUpdateDebtAdditionalPayment={handleUpdateForecastDebtAdditionalPayment}
             />
         </TabsContent>
       </Tabs>
@@ -431,7 +485,6 @@ export function BudgetManager() {
         onOpenChange={setIsAddCategoryDialogOpen}
         onCategoryAdded={handleAddVariableCategory}
       >
-        {/* Replace Fragment with a non-visible element that can accept props */}
         <div style={{ display: 'none' }} />
       </AddBudgetCategoryDialog>
     </div>
