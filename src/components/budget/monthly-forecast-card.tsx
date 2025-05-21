@@ -2,13 +2,13 @@
 "use client";
 
 import * as React from "react";
-import type { MonthlyForecast, MonthlyForecastDebtPaymentItem, MonthlyForecastGoalContribution, MonthlyForecastVariableExpense } from "@/types";
+import type { MonthlyForecast, MonthlyForecastDebtPaymentItem, MonthlyForecastGoalContribution, MonthlyForecastVariableExpense, MonthlyForecastIncomeItem, MonthlyForecastFixedExpenseItem, MonthlyForecastSubscriptionItem } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, AlertTriangle, TrendingUp, TrendingDown, ListChecks, ShieldCheck, Building, CreditCard, DollarSign, Info } from "lucide-react";
+import { CheckCircle2, AlertTriangle, TrendingUp, TrendingDown, ListChecks, ShieldCheck, Building, CreditCard, DollarSign, Info, FileText } from "lucide-react";
 
 interface MonthlyForecastCardProps {
   monthData: MonthlyForecast;
@@ -23,32 +23,31 @@ const formatCurrency = (amount: number) => {
 };
 
 interface ForecastItemDisplayProps {
-    items: { name: string; totalAmountInMonth: number; [key: string]: any }[]; // Allow other properties like 'id'
+    items: Array<{ id: string; name: string; totalAmountInMonth?: number; monthSpecificAmount?: number; monthSpecificContribution?: number; [key: string]: any }>;
     title: string;
     icon: React.ReactNode;
+    sectionTotal: number; // Total for the section header badge
     emptyMessage?: string;
     itemClassName?: string;
     monthIndex: number;
-    editableSection?: 'variable' | 'goal' | 'debtAdditional';
+    editableSection?: 'variable' | 'goal';
     onUpdateAmount?: (monthIndex: number, itemId: string, newAmount: number) => void;
 }
 
 const ForecastItemsSection: React.FC<ForecastItemDisplayProps> = ({ 
-    items, title, icon, emptyMessage = "No items this month.", itemClassName, 
+    items, title, icon, sectionTotal, emptyMessage = "No items this month.", itemClassName, 
     monthIndex, editableSection, onUpdateAmount
 }) => {
     
     const [editingValues, setEditingValues] = React.useState<Record<string, string>>({});
 
-    React.useEffect(() => { // Sync local editing values when underlying items prop changes
+    React.useEffect(() => { 
         const initialValues: Record<string, string> = {};
         items.forEach(item => {
-            if (editableSection === 'variable') {
-                initialValues[item.id] = (item as MonthlyForecastVariableExpense).monthSpecificAmount.toString();
-            } else if (editableSection === 'goal') {
-                initialValues[item.id] = (item as MonthlyForecastGoalContribution).monthSpecificContribution.toString();
-            } else if (editableSection === 'debtAdditional') {
-                initialValues[item.id] = ((item as MonthlyForecastDebtPaymentItem).additionalPayment || 0).toString();
+            if (editableSection === 'variable' && item.monthSpecificAmount !== undefined) {
+                initialValues[item.id] = item.monthSpecificAmount.toString();
+            } else if (editableSection === 'goal' && item.monthSpecificContribution !== undefined) {
+                initialValues[item.id] = item.monthSpecificContribution.toString();
             }
         });
         setEditingValues(initialValues);
@@ -66,34 +65,30 @@ const ForecastItemsSection: React.FC<ForecastItemDisplayProps> = ({
 
         const originalItem = items.find(i => i.id === itemId);
         let originalNumericValue: number | undefined;
+
         if (originalItem) {
-             if (editableSection === 'variable') originalNumericValue = (originalItem as MonthlyForecastVariableExpense).monthSpecificAmount;
-             else if (editableSection === 'goal') originalNumericValue = (originalItem as MonthlyForecastGoalContribution).monthSpecificContribution;
-             else if (editableSection === 'debtAdditional') originalNumericValue = (originalItem as MonthlyForecastDebtPaymentItem).additionalPayment || 0;
+             if (editableSection === 'variable') originalNumericValue = originalItem.monthSpecificAmount;
+             else if (editableSection === 'goal') originalNumericValue = originalItem.monthSpecificContribution;
         }
 
         if (!isNaN(numericValue) && numericValue >= 0) {
             if (numericValue !== originalNumericValue) {
                 onUpdateAmount(monthIndex, itemId, numericValue);
             }
-        } else { // Revert if invalid
+        } else { 
             if (originalNumericValue !== undefined) {
                 setEditingValues(prev => ({ ...prev, [itemId]: originalNumericValue!.toString() }));
             }
         }
     };
     
-    const isDebtSection = title === "Debt Payments";
-
     return (
         <div className="space-y-1">
             <h4 className="font-semibold text-foreground flex items-center mb-1">
                 {icon}
                 {title}
                 <Badge variant="outline" className="ml-auto text-xs">
-                    {formatCurrency(
-                        items.reduce((sum, item) => sum + (isDebtSection ? ((item as MonthlyForecastDebtPaymentItem).totalAmountInMonth + ((item as MonthlyForecastDebtPaymentItem).additionalPayment || 0)) : item.totalAmountInMonth), 0)
-                    )}
+                    {formatCurrency(sectionTotal)}
                 </Badge>
             </h4>
             {items.length > 0 ? items.map(item => (
@@ -110,13 +105,8 @@ const ForecastItemsSection: React.FC<ForecastItemDisplayProps> = ({
                             className={cn("h-6 py-1 px-1.5 text-xs text-right w-20", itemClassName)}
                             placeholder="0.00"
                         />
-                    ) : isDebtSection ? (
-                         <div className="flex items-center gap-1">
-                            <span className={cn("text-foreground/90", itemClassName)}>{formatCurrency((item as MonthlyForecastDebtPaymentItem).totalAmountInMonth)}</span>
-                             <span className="text-muted-foreground text-[10px]">(Min)</span>
-                        </div>
                     ) : (
-                        <span className={cn("text-foreground/90", itemClassName)}>{formatCurrency(item.totalAmountInMonth)}</span>
+                        <span className={cn("text-foreground/90", itemClassName)}>{formatCurrency(item.totalAmountInMonth || 0)}</span>
                     )}
                 </div>
             )) : <p className="text-xs text-muted-foreground pl-1 italic">{emptyMessage}</p>}
@@ -141,6 +131,7 @@ export function MonthlyForecastCard({
             items={monthData.incomeItems}
             title="Income"
             icon={<TrendingUp className="h-5 w-5 mr-2 text-green-500" />}
+            sectionTotal={monthData.totalIncome}
             emptyMessage="No income projected."
             itemClassName="text-green-600"
             monthIndex={monthIndex}
@@ -150,7 +141,8 @@ export function MonthlyForecastCard({
         <ForecastItemsSection
             items={monthData.fixedExpenseItems}
             title="Fixed Expenses"
-            icon={<Building className="h-5 w-5 mr-2 text-purple-500" />}
+            icon={<FileText className="h-5 w-5 mr-2 text-purple-500" />}
+            sectionTotal={monthData.totalFixedExpenses}
             emptyMessage="No fixed expenses."
             itemClassName="text-purple-600"
             monthIndex={monthIndex}
@@ -161,6 +153,7 @@ export function MonthlyForecastCard({
             items={monthData.subscriptionItems}
             title="Subscriptions"
             icon={<CreditCard className="h-5 w-5 mr-2 text-blue-500" />}
+            sectionTotal={monthData.totalSubscriptions}
             emptyMessage="No subscriptions."
             itemClassName="text-blue-600"
             monthIndex={monthIndex}
@@ -171,6 +164,7 @@ export function MonthlyForecastCard({
             items={monthData.variableExpenses}
             title="Variable Expenses"
             icon={<ListChecks className="h-5 w-5 mr-2 text-orange-500"/>}
+            sectionTotal={monthData.totalVariableExpenses}
             emptyMessage="No variable categories."
             itemClassName="text-orange-600"
             monthIndex={monthIndex}
@@ -235,6 +229,7 @@ export function MonthlyForecastCard({
             items={monthData.goalContributions}
             title="Goal Contributions"
             icon={<ShieldCheck className="h-5 w-5 mr-2 text-teal-500"/>}
+            sectionTotal={monthData.totalGoalContributions}
             emptyMessage="No goals being funded."
             itemClassName="text-teal-600"
             monthIndex={monthIndex}
@@ -268,3 +263,4 @@ export function MonthlyForecastCard({
     </Card>
   );
 }
+
