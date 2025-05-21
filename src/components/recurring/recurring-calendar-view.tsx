@@ -6,9 +6,10 @@ import type { UnifiedRecurringListItem } from '@/types';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { format, isSameDay, startOfMonth } from 'date-fns';
+import { format, isSameDay, startOfMonth, isSameMonth } from 'date-fns'; // Added isSameMonth
+import type { DayContentProps } from 'react-day-picker'; // Import DayContentProps
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowDownCircle, ArrowUpCircle, CalendarDays } from 'lucide-react'; // Added CalendarDays for title
+import { ArrowDownCircle, ArrowUpCircle, CalendarDays } from 'lucide-react';
 
 interface RecurringCalendarViewProps {
   items: UnifiedRecurringListItem[];
@@ -31,16 +32,34 @@ export function RecurringCalendarView({ items }: RecurringCalendarViewProps) {
     }
   }, [selectedDate, items, month]);
 
-  const eventDays = items
-    .filter(item => item.status !== "Ended")
-    .map(item => new Date(item.nextOccurrenceDate));
+  // Custom DayContent component to render inside each calendar day cell
+  const CustomDayContent = ({ date, displayMonth }: DayContentProps) => {
+    const dayOfMonth = format(date, "d");
+    
+    // Filter items for the current day AND current display month
+    const itemsOnThisDay = items.filter(item => 
+        isSameDay(new Date(item.nextOccurrenceDate), date) && 
+        item.status !== "Ended" && 
+        isSameMonth(date, displayMonth)
+    );
 
-  const modifiers = {
-    hasEvents: eventDays,
-  };
-
-  const modifiersClassNames = {
-    hasEvents: 'event-day-marker',
+    return (
+        <div className="flex flex-col items-center justify-start h-full w-full pt-0.5 sm:pt-1">
+            <span className="text-xs font-medium">{dayOfMonth}</span>
+            {itemsOnThisDay.length > 0 && (
+                <div className="mt-px w-full overflow-hidden px-0.5 text-center">
+                    <p className="text-[10px] leading-tight truncate text-primary dark:text-primary-foreground/80">
+                        {itemsOnThisDay[0].name}
+                    </p>
+                    {itemsOnThisDay.length > 1 && (
+                        <p className="text-[9px] leading-tight text-muted-foreground">
+                            +{itemsOnThisDay.length - 1} more
+                        </p>
+                    )}
+                </div>
+            )}
+        </div>
+    );
   };
 
   return (
@@ -52,7 +71,7 @@ export function RecurringCalendarView({ items }: RecurringCalendarViewProps) {
             Calendar Overview
           </CardTitle>
           <CardDescription>
-            Days with upcoming recurring items are marked with a dot. Click a day to see details.
+            Days with upcoming recurring items show item names. Click a day to see full details.
             (Currently shows next occurrence only for each item).
           </CardDescription>
         </CardHeader>
@@ -63,17 +82,16 @@ export function RecurringCalendarView({ items }: RecurringCalendarViewProps) {
             onSelect={setSelectedDate}
             month={month}
             onMonthChange={setMonth}
-            modifiers={modifiers}
-            modifiersClassNames={modifiersClassNames}
+            components={{ DayContent: CustomDayContent }} // Use custom DayContent
             className="p-0 rounded-md border" 
             classNames={{
                 day_selected: "bg-primary text-primary-foreground hover:bg-primary/90 focus:bg-primary/90",
                 day_today: "bg-accent text-accent-foreground font-bold",
                 caption_label: "text-lg font-medium",
                 head_cell: "w-10 sm:w-12",
-                day: "h-10 w-10 sm:h-12 sm:w-12",
+                day: "h-10 w-10 sm:h-12 sm:w-12 p-0", // Reset padding for custom content
             }}
-            showOutsideDays={false}
+            showOutsideDays={true} // Show outside days for better context
           />
         </CardContent>
       </Card>

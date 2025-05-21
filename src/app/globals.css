@@ -118,7 +118,8 @@ body {
   }
 }
 
-/* Custom style for react-day-picker event markers */
+/* Custom style for react-day-picker event markers - REMOVED as it's no longer used */
+/*
 .event-day-marker {
   position: relative;
 }
@@ -126,31 +127,30 @@ body {
 .event-day-marker::after {
   content: '';
   position: absolute;
-  bottom: 6px; /* Adjust for vertical position */
+  bottom: 6px; 
   left: 50%;
   transform: translateX(-50%);
-  width: 6px; /* Size of the dot */
-  height: 6px; /* Size of the dot */
+  width: 6px; 
+  height: 6px; 
   border-radius: 50%;
-  background-color: hsl(var(--primary)); /* Dot color */
+  background-color: hsl(var(--primary)); 
 }
 
 .dark .event-day-marker::after {
-  background-color: hsl(var(--primary-foreground)); /* Dot color for dark mode */
+  background-color: hsl(var(--primary-foreground)); 
 }
 
-/* Ensure selected days with events still show the event marker if desired, or style appropriately */
 .rdp-day_selected.event-day-marker::after {
-  background-color: hsl(var(--primary-foreground)); /* Or a contrasting color if primary is used for selection bg */
+  background-color: hsl(var(--primary-foreground)); 
 }
 .dark .rdp-day_selected.event-day-marker::after {
    background-color: hsl(var(--primary));
 }
 
-/* Today's date marker should be distinct */
 .rdp-day_today.event-day-marker::after {
-    background-color: hsl(var(--accent-foreground)); /* Ensure visibility on accent background */
+    background-color: hsl(var(--accent-foreground)); 
 }
 .dark .rdp-day_today.event-day-marker::after {
     background-color: hsl(var(--accent-foreground));
 }
+*/
