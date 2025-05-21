@@ -29,16 +29,15 @@ const formSchema = z.object({
   date: z.date({ required_error: "Date is required." }),
   detailedType: z.enum(transactionDetailedTypes, { required_error: "Transaction type is required." }),
   
-  // Conditional fields based on detailedType
-  description: z.string().optional(), // Optional if an item is selected
-  sourceId: z.string().optional(), // ID of selected income source, expense, debt, or goal
+  description: z.string().optional(), 
+  sourceId: z.string().optional(), 
   
   amount: z.preprocess(
     (val) => (typeof val === 'string' ? parseFloat(val.replace(/[^0-9.-]+/g,"")) : val),
     z.number({ required_error: "Amount is required.", invalid_type_error: "Amount must be a number." })
      .positive({ message: "Amount must be a positive number." })
   ),
-  categoryId: z.string().nullable().optional(), // Only for variable-expense
+  categoryId: z.string().nullable().optional(), 
   accountId: z.string({ required_error: "Account is required." }),
   notes: z.string().max(200, "Notes must be 200 characters or less.").optional(),
   tags: z.string().optional(),
@@ -66,12 +65,12 @@ const formSchema = z.object({
 type TransactionFormValues = z.infer<typeof formSchema>;
 
 interface AddEditTransactionDialogProps {
-  children: ReactNode;
+  children?: ReactNode;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (data: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt">, id?: string) => void;
-  categories: Category[]; // For variable expenses
-  accounts: Account[]; // Asset accounts
+  categories: Category[]; 
+  accounts: Account[]; 
   recurringItems: RecurringItem[];
   debtAccounts: DebtAccount[];
   goals: FinancialGoalWithContribution[];
@@ -83,7 +82,7 @@ const detailedTypeButtonConfig: { type: TransactionDetailedType; label: string; 
   { type: 'variable-expense', label: 'Variable Expense', icon: ShoppingBag },
   { type: 'fixed-expense', label: 'Fixed Expense', icon: FileText },
   { type: 'subscription', label: 'Subscription', icon: Repeat },
-  { type: 'debt-payment', label: 'Debt Payment', icon: Landmark }, // Or Target
+  { type: 'debt-payment', label: 'Debt Payment', icon: Landmark }, 
   { type: 'goal-contribution', label: 'Goal Contribution', icon: Flag },
 ];
 
@@ -125,7 +124,7 @@ export function AddEditTransactionDialog({
         notes: transactionToEdit.notes || "",
         tags: transactionToEdit.tags?.join(", ") || "",
       });
-    } else if (!isOpen) {
+    } else if (!isOpen && !transactionToEdit) { // Reset only if dialog closes and not editing
       form.reset({
         date: startOfDay(new Date()), detailedType: 'variable-expense', description: "", sourceId: undefined,
         amount: undefined, categoryId: null, accountId: undefined, notes: "", tags: "",
@@ -156,13 +155,18 @@ export function AddEditTransactionDialog({
     }
     
     if (selectedItemName) form.setValue('description', selectedItemName, {shouldValidate: true});
-    if (selectedItemAmount !== undefined) form.setValue('amount', selectedItemAmount, {shouldValidate: true});
+    if (selectedItemAmount !== undefined && selectedItemAmount > 0) {
+      form.setValue('amount', parseFloat(selectedItemAmount.toFixed(2)), {shouldValidate: true});
+    } else if (selectedItemAmount !== undefined && selectedItemAmount <= 0 && selectedDetailedType === 'goal-contribution') {
+      // For goals, if monthly contribution is 0 or less (e.g. goal met), don't prefill amount or allow a small default.
+      // Or, let user enter manually. For now, let's not prefill if contribution is not positive.
+      form.setValue('amount', undefined, { shouldValidate: true }); // Clear or set to a small placeholder if desired
+    }
   };
   
-  useEffect(() => { // Reset sourceId and related fields if detailedType changes
+  useEffect(() => { 
     form.setValue('sourceId', undefined);
     form.setValue('description', '');
-    // form.setValue('amount', undefined); // Keep amount if user typed it manually
     if(selectedDetailedType !== 'variable-expense') {
         form.setValue('categoryId', null);
     }
@@ -177,9 +181,9 @@ export function AddEditTransactionDialog({
 
     const transactionData = {
       date: startOfDay(values.date),
-      description: values.description || "N/A", // Fallback if description is somehow empty
-      amount: values.amount, // Amount is positive, sign handled by manager
-      type: baseTransactionType, // This will be derived from detailedType
+      description: values.description || "N/A", 
+      amount: values.amount, 
+      type: baseTransactionType, 
       detailedType: values.detailedType,
       sourceId: values.sourceId || undefined,
       categoryId: values.detailedType === 'variable-expense' ? (values.categoryId === "_UNCATEGORIZED_" ? null : values.categoryId) : null,
@@ -208,19 +212,19 @@ export function AddEditTransactionDialog({
         case 'debt-payment':
             return debtAccounts.map(item => ({value: item.id, label: item.name}));
         case 'goal-contribution':
-            return goals.map(item => ({value: item.id, label: item.name}));
+            return goals.filter(g => g.currentAmount < g.targetAmount).map(item => ({value: item.id, label: item.name})); // Only show active goals
         default:
             return [];
     }
   };
 
-  const getSourceSelectPlaceholder = () => {
+  const getSourceSelectLabel = () => {
      switch(selectedDetailedType) {
         case 'income': return "Select Income Source";
         case 'fixed-expense': return "Select Fixed Expense";
         case 'subscription': return "Select Subscription";
         case 'debt-payment': return "Select Debt Account";
-        case 'goal-contribution': return "Select Goal";
+        case 'goal-contribution': return "To Goal (Destination)"; // Updated Label
         default: return "Select Item";
     }
   }
@@ -228,6 +232,12 @@ export function AddEditTransactionDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!isLoading && !open) {
+        form.reset({ // Explicitly reset on close if not editing
+            date: startOfDay(new Date()), detailedType: 'variable-expense', description: "", sourceId: undefined,
+            amount: undefined, categoryId: null, accountId: undefined, notes: "", tags: "",
+        });
+      }
       if (!isLoading) onOpenChange(open); 
     }}>
       {children && <DialogTrigger asChild>{children}</DialogTrigger>}
@@ -269,11 +279,11 @@ export function AddEditTransactionDialog({
                     name="sourceId"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>{getSourceSelectPlaceholder()} *</FormLabel>
-                        <Select onValueChange={(value) => handleItemSelection(value)} value={field.value || ""}>
+                        <FormLabel>{getSourceSelectLabel()} *</FormLabel>
+                        <Select onValueChange={(value) => handleItemSelection(value)} value={field.value || ""} >
                             <FormControl>
                             <SelectTrigger>
-                                <SelectValue placeholder={getSourceSelectPlaceholder()} />
+                                <SelectValue placeholder={getSourceSelectLabel()} />
                             </SelectTrigger>
                             </FormControl>
                             <SelectContent>
@@ -290,7 +300,7 @@ export function AddEditTransactionDialog({
                 />
             )}
             
-            {selectedDetailedType === 'variable-expense' && (
+            {(selectedDetailedType === 'variable-expense' || (selectedDetailedType !== 'variable-expense' && !form.watch('sourceId'))) && (
                 <FormField
                     control={form.control}
                     name="description"
@@ -315,7 +325,10 @@ export function AddEditTransactionDialog({
                         <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                             <span className="text-muted-foreground sm:text-sm">$</span>
                         </div>
-                        <Input type="number" step="0.01" placeholder="0.00" {...field} className="pl-7" />
+                        <Input type="number" step="0.01" placeholder="0.00" {...field} 
+                               onChange={e => field.onChange(parseFloat(e.target.value) || undefined)}
+                               value={field.value === undefined ? '' : field.value}
+                               className="pl-7" />
                     </div>
                   </FormControl>
                   <FormMessage />
@@ -361,14 +374,14 @@ export function AddEditTransactionDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{getAccountLabel()}</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || ""} >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select an account" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {accounts.filter(acc => acc.type !== 'credit card' || acc.balance >= 0).map(account => (
+                      {accounts.filter(acc => acc.type !== 'credit card' || acc.balance >=0).map(account => (
                         <SelectItem key={account.id} value={account.id}>
                           {account.name} ({account.type})
                         </SelectItem>
@@ -403,7 +416,7 @@ export function AddEditTransactionDialog({
                       <Calendar
                         mode="single"
                         selected={field.value}
-                        onSelect={(date) => { field.onChange(date); setIsDatePickerOpen(false); }}
+                        onSelect={(date) => { if(date) field.onChange(startOfDay(date)); setIsDatePickerOpen(false); }}
                         initialFocus
                       />
                     </PopoverContent>
@@ -443,7 +456,15 @@ export function AddEditTransactionDialog({
             />
 
             <DialogFooter className="pt-4">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+              <Button type="button" variant="outline" onClick={() => {
+                onOpenChange(false);
+                if (!transactionToEdit) { // Reset only if adding new, not on cancel edit
+                     form.reset({
+                        date: startOfDay(new Date()), detailedType: 'variable-expense', description: "", sourceId: undefined,
+                        amount: undefined, categoryId: null, accountId: undefined, notes: "", tags: "",
+                     });
+                }
+              }} disabled={isLoading}>
                 Cancel
               </Button>
               <Button type="submit" disabled={isLoading}>
@@ -457,3 +478,5 @@ export function AddEditTransactionDialog({
     </Dialog>
   );
 }
+
+    
