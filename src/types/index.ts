@@ -13,7 +13,7 @@ export interface Category {
   createdAt: Date;
 }
 
-export type TransactionType = 'income' | 'expense'; // Overall flow direction
+export type TransactionType = 'income' | 'expense' | 'transfer'; // Overall flow direction
 
 export const transactionDetailedTypes = ['income', 'variable-expense', 'fixed-expense', 'subscription', 'debt-payment', 'goal-contribution'] as const;
 export type TransactionDetailedType = typeof transactionDetailedTypes[number];
@@ -27,7 +27,8 @@ export interface Transaction {
   type: TransactionType; // Main type: 'income' or 'expense', derived from detailedType
   detailedType?: TransactionDetailedType; // Specific user selection
   categoryId?: string | null; // For variable-expenses primarily
-  accountId: string; // Link to an asset Account
+  accountId: string; // Link to an asset Account (source for expenses/transfers, destination for income)
+  toAccountId?: string | null; // Destination account for transfers (like goal contributions)
   sourceId?: string; // ID of the linked RecurringItem, DebtAccount, or FinancialGoal
   userId: string;
   source?: string; // e.g., "Manual Entry"

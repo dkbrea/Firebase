@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Transaction, Category, Account, RecurringItem, DebtAccount, FinancialGoalWithContribution } from "@/types";
+import type { Transaction, Category, Account, RecurringItem, DebtAccount, FinancialGoalWithContribution, TransactionDetailedType } from "@/types";
 import { useState, useEffect } from "react";
 import { TransactionTable } from "./transaction-table";
 import { AddEditTransactionDialog } from "./add-edit-transaction-dialog";
@@ -27,6 +27,7 @@ const mockCategories: Category[] = [
 const mockAssetAccounts: Account[] = [
   { id: "acc1", name: "Main Checking", type: "checking", bankName: "Capital One", last4: "1234", balance: 5231.89, isPrimary: true, userId: "1", createdAt: new Date() },
   { id: "acc2", name: "Emergency Fund", type: "savings", bankName: "Ally Bank", last4: "5678", balance: 10500.00, isPrimary: false, userId: "1", createdAt: new Date() },
+  { id: "acc3", name: "Discover Savings", type: "savings", bankName: "Discover", last4: "9012", balance: 2000.00, isPrimary: false, userId: "1", createdAt: new Date() },
 ];
 
 const initialMockTransactions: Transaction[] = [
@@ -50,24 +51,25 @@ const mockDebtAccounts: DebtAccount[] = [
 
 const mockGoals: FinancialGoalWithContribution[] = [
   { id: "goal1", name: "New Car Down Payment", targetAmount: 5000, currentAmount: 1200, targetDate: new Date(2025, 11, 31), icon: "car", userId: "1", createdAt: new Date(), monthlyContribution: 150, monthsRemaining: 20 },
+  { id: "goal2", name: "Emergency Fund Contribution", targetAmount: 10000, currentAmount: 8500, targetDate: new Date(2025, 11, 31), icon: "shield-check", userId: "1", createdAt: new Date(), monthlyContribution: 75, monthsRemaining: 20 },
 ];
 
 
 export function TransactionManager() {
   const { toast } = useToast();
   const [transactions, setTransactions] = useState<Transaction[]>(initialMockTransactions);
-  const [categories, setCategories] = useState<Category[]>(mockCategories);
-  const [accounts, setAccounts] = useState<Account[]>(mockAssetAccounts);
+  const [categoriesList, setCategoriesList] = useState<Category[]>(mockCategories); // Renamed
+  const [accountsList, setAccountsList] = useState<Account[]>(mockAssetAccounts); // Renamed
   
-  const [recurringItems, setRecurringItems] = useState<RecurringItem[]>(mockRecurringItems);
-  const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>(mockDebtAccounts);
-  const [goals, setGoals] = useState<FinancialGoalWithContribution[]>(mockGoals);
+  const [recurringItemsList, setRecurringItemsList] = useState<RecurringItem[]>(mockRecurringItems); // Renamed
+  const [debtAccountsList, setDebtAccountsList] = useState<DebtAccount[]>(mockDebtAccounts); // Renamed
+  const [goalsList, setGoalsList] = useState<FinancialGoalWithContribution[]>(mockGoals); // Renamed
 
   const [isAddEditDialogOpen, setIsAddEditDialogOpen] = useState(false);
   const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
 
   useEffect(() => {
-    // Categories and accounts are set from mock data above
+    // Data is set from mock data above
   }, []);
 
   const handleOpenAddDialog = () => {
@@ -84,20 +86,24 @@ export function TransactionManager() {
     data: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt">, 
     id?: string
   ) => {
-    const finalType: Transaction['type'] = data.detailedType === 'income' ? 'income' : 'expense';
-    const finalAmount = finalType === 'income' ? Math.abs(data.amount) : -Math.abs(data.amount);
+    
+    let finalType: Transaction['type'] = 'expense';
+    if (data.detailedType === 'income') {
+      finalType = 'income';
+    } else if (data.detailedType === 'goal-contribution') {
+      finalType = 'transfer';
+    }
+    
+    const finalAmount = (finalType === 'income' || finalType === 'transfer') ? Math.abs(data.amount) : -Math.abs(data.amount);
 
     const processedData: Partial<Transaction> = {
       ...data,
       type: finalType,
       amount: finalAmount,
       tags: data.tags || [],
+      categoryId: data.detailedType === 'variable-expense' ? data.categoryId : null, // Ensure categoryId is only set for variable-expense
+      toAccountId: data.detailedType === 'goal-contribution' ? data.toAccountId : null, // Ensure toAccountId is only set for goal-contribution
     };
-
-    // Remove categoryId if it's not a variable expense, as it's implied by the sourceId
-    if (data.detailedType !== 'variable-expense') {
-      processedData.categoryId = null;
-    }
 
 
     if (id) { 
@@ -112,7 +118,7 @@ export function TransactionManager() {
         ...processedData,
         id: `txn-${Date.now()}`,
         userId: "1", 
-        source: "Manual Entry",
+        source: "Manual Entry", // Or derive from sourceId if applicable
         createdAt: new Date(),
         updatedAt: new Date(),
       } as Transaction;
@@ -192,17 +198,17 @@ export function TransactionManager() {
         <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div>
             <CardTitle>Transaction History</CardTitle>
-            <CardDescription>Manually add, view, categorize, and manage your transactions.</CardDescription>
+            <CardDescription>Manually track all your income and expenses. Use AI to help categorize your spending.</CardDescription>
           </div>
           <AddEditTransactionDialog
             isOpen={isAddEditDialogOpen}
             onOpenChange={setIsAddEditDialogOpen}
             onSave={handleSaveTransaction}
-            categories={categories}
-            accounts={accounts}
-            recurringItems={recurringItems}
-            debtAccounts={debtAccounts}
-            goals={goals}
+            categories={categoriesList}
+            accounts={accountsList}
+            recurringItems={recurringItemsList}
+            debtAccounts={debtAccountsList}
+            goals={goalsList}
             transactionToEdit={transactionToEdit}
           >
             <Button onClick={handleOpenAddDialog} variant="default">
@@ -213,8 +219,8 @@ export function TransactionManager() {
         <CardContent>
           <TransactionTable
             transactions={transactions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
-            categories={categories}
-            accounts={accounts}
+            categories={categoriesList}
+            accounts={accountsList}
             onUpdateTransactionCategory={handleUpdateTransactionCategory}
             onDeleteTransaction={handleDeleteTransaction}
             onEditTransaction={handleOpenEditDialog}
