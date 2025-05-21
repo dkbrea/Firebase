@@ -13,14 +13,21 @@ export interface Category {
   createdAt: Date;
 }
 
+export type TransactionType = 'income' | 'expense';
+
 export interface Transaction {
   id: string;
   date: Date;
   description: string;
-  amount: number; // Positive for income, negative for expense
-  categoryId?: string | null; // Optional link to a category
+  amount: number; // Positive for income, negative for expense (persisted this way)
+  type: TransactionType; // Explicitly 'income' or 'expense'
+  categoryId?: string | null;
+  accountId: string; // Link to an asset Account
   userId: string;
-  source?: string; // e.g., "Bank A", "Plaid Import"
+  source?: string; // e.g., "Manual Entry"
+  notes?: string;
+  createdAt?: Date; // Optional: when the record was created
+  updatedAt?: Date; // Optional: when the record was last updated
 }
 
 export interface ExpenseByCategory {
@@ -84,13 +91,13 @@ export const predefinedRecurringCategories = [
   { value: 'utilities', label: 'Utilities (Energy, Water, Internet, Phone)' },
   { value: 'transportation', label: 'Transportation (Car, Gas, Public Transit)' },
   { value: 'insurance', label: 'Insurance (Health, Auto, Life)' },
-  { value: 'food-groceries', label: 'Groceries' }, // Note: Typically transactional, but some fixed like meal kits
+  { value: 'food-groceries', label: 'Groceries' },
   { value: 'health-wellness', label: 'Health & Wellness (Gym, Meds)' },
   { value: 'childcare-education', label: 'Childcare & Education' },
   { value: 'subscriptions-media', label: 'Subscriptions & Media' },
   { value: 'software-productivity', label: 'Software & Productivity Tools' },
   { value: 'personal-care', label: 'Personal Care Subscriptions' },
-  { value: 'loan-payments', label: 'Loan Payments (Non-debt plan)' }, // For fixed loans not in debt strategy
+  { value: 'loan-payments', label: 'Loan Payments (Non-debt plan)' },
   { value: 'savings-investments', label: 'Savings & Investments (Fixed Transfer)' },
   { value: 'other-fixed', label: 'Other Fixed Expense' },
 ] as const;

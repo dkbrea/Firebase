@@ -1,52 +1,38 @@
+
 "use client";
 
-import type { Transaction, Category } from "@/types";
+import type { Transaction, Category, Account } from "@/types";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Wand2, Trash2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Wand2, Trash2, Edit3, MoreHorizontal } from "lucide-react";
 import { format } from "date-fns";
 import { categorizeTransaction as categorizeTransactionFlow } from "@/ai/flows/categorize-transaction";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 interface TransactionTableProps {
   transactions: Transaction[];
   categories: Category[];
+  accounts: Account[];
   onUpdateTransactionCategory: (transactionId: string, categoryId: string | null) => void;
   onDeleteTransaction: (transactionId: string) => void;
+  onEditTransaction: (transaction: Transaction) => void;
 }
 
 export function TransactionTable({
-  transactions,
-  categories,
-  onUpdateTransactionCategory,
-  onDeleteTransaction,
+  transactions, categories, accounts,
+  onUpdateTransactionCategory, onDeleteTransaction, onEditTransaction,
 }: TransactionTableProps) {
   const { toast } = useToast();
   const [suggestingFor, setSuggestingFor] = useState<string | null>(null);
@@ -56,6 +42,10 @@ export function TransactionTable({
   };
 
   const handleSuggestCategory = async (transaction: Transaction) => {
+    if (!transaction.description) {
+        toast({ title: "AI Suggestion", description: "Please enter a description first.", variant: "default" });
+        return;
+    }
     setSuggestingFor(transaction.id);
     try {
       const result = await categorizeTransactionFlow({ transactionDescription: transaction.description });
@@ -70,66 +60,52 @@ export function TransactionTable({
         } else {
           toast({
             title: "AI Suggestion",
-            description: `Suggested category: "${result.suggestedCategory}" (Confidence: ${(result.confidenceScore * 100).toFixed(0)}%). Category not found, please add it first.`,
+            description: `Suggested: "${result.suggestedCategory}" (Confidence: ${(result.confidenceScore * 100).toFixed(0)}%). Category not found.`,
             variant: "default",
           });
         }
       } else {
-        toast({
-          title: "AI Suggestion",
-          description: "Could not determine a category for this transaction.",
-          variant: "default",
-        });
+        toast({ title: "AI Suggestion", description: "Could not determine a category.", variant: "default" });
       }
     } catch (error) {
       console.error("AI categorization error:", error);
-      toast({
-        title: "Error",
-        description: "Failed to get AI category suggestion.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to get AI category suggestion.", variant: "destructive" });
     }
     setSuggestingFor(null);
   };
-
-  const handleDelete = (transaction: Transaction) => {
-    onDeleteTransaction(transaction.id);
-    toast({
-      title: "Transaction Deleted",
-      description: `Transaction "${transaction.description}" has been deleted.`,
-      variant: "destructive"
-    });
-  };
+  
+  const getAccountName = (accountId: string) => {
+    return accounts.find(acc => acc.id === accountId)?.name || "N/A";
+  }
 
   if (transactions.length === 0) {
-    return <p className="text-muted-foreground mt-4">No transactions to display. Connect your bank or add transactions manually.</p>;
+    return <p className="text-muted-foreground mt-4 text-center py-6">No transactions yet. Click "Add Transaction" to get started.</p>;
   }
 
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Date</TableHead>
+          <TableHead className="w-[100px]">Date</TableHead>
           <TableHead>Description</TableHead>
-          <TableHead className="text-right">Amount</TableHead>
+          <TableHead>Account</TableHead>
           <TableHead>Category</TableHead>
-          <TableHead>Actions</TableHead>
+          <TableHead className="text-right">Amount</TableHead>
+          <TableHead className="text-right w-[100px]">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {transactions.map((transaction) => (
           <TableRow key={transaction.id}>
-            <TableCell>{format(new Date(transaction.date), "MMM dd, yyyy")}</TableCell>
+            <TableCell>{format(new Date(transaction.date), "MMM dd, yy")}</TableCell>
             <TableCell className="font-medium">{transaction.description}</TableCell>
-            <TableCell className={`text-right font-semibold ${transaction.amount < 0 ? 'text-destructive' : 'text-green-600'}`}>
-              ${Math.abs(transaction.amount).toFixed(2)}
-            </TableCell>
+            <TableCell className="text-xs text-muted-foreground">{getAccountName(transaction.accountId)}</TableCell>
             <TableCell>
               <Select
                 value={transaction.categoryId || "none"}
                 onValueChange={(value) => handleCategoryChange(transaction.id, value)}
               >
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full min-w-[150px] text-xs h-9">
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -142,38 +118,52 @@ export function TransactionTable({
                 </SelectContent>
               </Select>
             </TableCell>
-            <TableCell className="space-x-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleSuggestCategory(transaction)}
-                disabled={suggestingFor === transaction.id}
-                className="text-xs"
-              >
-                <Wand2 className="mr-1 h-3 w-3" />
-                {suggestingFor === transaction.id ? "Suggesting..." : "Suggest"}
-              </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                   <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive h-8 w-8">
-                    <Trash2 className="h-4 w-4" />
-                   </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete the transaction for "{transaction.description}".
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => handleDelete(transaction)} className="bg-destructive hover:bg-destructive/90">
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+            <TableCell className={cn("text-right font-semibold", transaction.type === 'income' ? 'text-green-600' : 'text-foreground')}>
+              {transaction.type === 'income' ? '+' : '-'}${Math.abs(transaction.amount).toFixed(2)}
+            </TableCell>
+            <TableCell className="text-right">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="h-8 w-8 p-0">
+                    <span className="sr-only">Open menu</span>
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => onEditTransaction(transaction)}>
+                    <Edit3 className="mr-2 h-4 w-4" />
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleSuggestCategory(transaction)} disabled={suggestingFor === transaction.id}>
+                    <Wand2 className="mr-2 h-4 w-4" />
+                    {suggestingFor === transaction.id ? "Suggesting..." : "AI Suggest Category"}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Transaction?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete the transaction: "{transaction.description}". This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => onDeleteTransaction(transaction.id)} className="bg-destructive hover:bg-destructive/90">
+                          Delete Transaction
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </TableCell>
           </TableRow>
         ))}
