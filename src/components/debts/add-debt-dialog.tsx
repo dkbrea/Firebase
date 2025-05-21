@@ -30,8 +30,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { DebtAccount, DebtAccountType } from "@/types";
-import { debtAccountTypes } from "@/types"; // Import the array of types
+import type { DebtAccount, DebtAccountType, PaymentFrequency } from "@/types";
+import { debtAccountTypes, paymentFrequencies } from "@/types"; // Import the array of types
 import { useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 
@@ -50,6 +50,15 @@ const formSchema = z.object({
     (val) => (typeof val === 'string' ? parseFloat(val.replace(/[^0-9.-]+/g,"")) : val),
     z.number({ invalid_type_error: "Minimum payment must be a number." }).positive({ message: "Minimum payment must be positive." })
   ),
+  paymentDayOfMonth: z.preprocess(
+    (val) => {
+      if (typeof val === 'string' && val.trim() !== '') return parseInt(val, 10);
+      if (typeof val === 'number') return val;
+      return undefined;
+    },
+    z.number().int().min(1).max(31).optional()
+  ),
+  paymentFrequency: z.enum(paymentFrequencies).optional(),
 });
 
 type AddDebtFormValues = z.infer<typeof formSchema>;
@@ -59,7 +68,6 @@ interface AddDebtDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onDebtAdded: (debtData: Omit<DebtAccount, "id" | "userId" | "createdAt">) => void;
-  // existingDebt?: DebtAccount; // For editing, implement later
 }
 
 export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded }: AddDebtDialogProps) {
@@ -73,6 +81,8 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded }: A
       balance: undefined,
       apr: undefined,
       minimumPayment: undefined,
+      paymentDayOfMonth: undefined,
+      paymentFrequency: undefined,
     },
   });
 
@@ -81,7 +91,11 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded }: A
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 700));
     
-    onDebtAdded(values);
+    onDebtAdded({
+        ...values,
+        paymentDayOfMonth: values.paymentDayOfMonth || undefined,
+        paymentFrequency: values.paymentFrequency || undefined,
+    });
     form.reset();
     setIsLoading(false);
     onOpenChange(false); // Close dialog on success
@@ -174,6 +188,43 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded }: A
                   <FormControl>
                     <Input type="number" step="0.01" placeholder="50.00" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+              control={form.control}
+              name="paymentDayOfMonth"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Payment Day of Month (Optional)</FormLabel>
+                  <FormControl>
+                    <Input type="number" min="1" max="31" placeholder="e.g., 15" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="paymentFrequency"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Payment Frequency (Optional)</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select frequency" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {paymentFrequencies.map(freq => (
+                        <SelectItem key={freq} value={freq} className="capitalize">
+                          {freq.charAt(0).toUpperCase() + freq.slice(1)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

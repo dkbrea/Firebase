@@ -46,6 +46,10 @@ export type DebtAccountType = 'credit-card' | 'student-loan' | 'personal-loan' |
 
 export const debtAccountTypes: DebtAccountType[] = ['credit-card', 'student-loan', 'personal-loan', 'mortgage', 'auto-loan', 'other'];
 
+export type PaymentFrequency = 'monthly' | 'bi-weekly' | 'weekly' | 'annually' | 'other';
+export const paymentFrequencies: PaymentFrequency[] = ['monthly', 'bi-weekly', 'weekly', 'annually', 'other'];
+
+
 export interface DebtAccount {
   id: string;
   name: string;
@@ -53,6 +57,8 @@ export interface DebtAccount {
   balance: number;
   apr: number; // Annual Percentage Rate, e.g., 19.9 for 19.9%
   minimumPayment: number;
+  paymentDayOfMonth?: number; // e.g., 1, 15, 31
+  paymentFrequency?: PaymentFrequency;
   userId: string;
   createdAt: Date;
 }

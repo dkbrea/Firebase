@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { DebtAccount, DebtPayoffStrategy, DebtAccountType } from "@/types";
+import type { DebtAccount, DebtPayoffStrategy, PaymentFrequency } from "@/types";
 import { useState, useEffect } from "react";
 import { DebtList } from "./debt-list";
 import { AddDebtDialog } from "./add-debt-dialog";
@@ -13,9 +13,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const mockDebtAccounts: DebtAccount[] = [
-  { id: "debt1", name: "Visa Gold", type: "credit-card", balance: 5250.75, apr: 18.9, minimumPayment: 150, userId: "1", createdAt: new Date() },
-  { id: "debt2", name: "Student Loan - Navient", type: "student-loan", balance: 22500.00, apr: 6.8, minimumPayment: 280, userId: "1", createdAt: new Date() },
-  { id: "debt3", name: "Car Loan - Local CU", type: "auto-loan", balance: 8700.50, apr: 4.2, minimumPayment: 350, userId: "1", createdAt: new Date() },
+  { id: "debt1", name: "Visa Gold", type: "credit-card", balance: 5250.75, apr: 18.9, minimumPayment: 150, paymentDayOfMonth: 15, paymentFrequency: "monthly", userId: "1", createdAt: new Date() },
+  { id: "debt2", name: "Student Loan - Navient", type: "student-loan", balance: 22500.00, apr: 6.8, minimumPayment: 280, paymentDayOfMonth: 1, paymentFrequency: "monthly", userId: "1", createdAt: new Date() },
+  { id: "debt3", name: "Car Loan - Local CU", type: "auto-loan", balance: 8700.50, apr: 4.2, minimumPayment: 350, paymentFrequency: "bi-weekly", userId: "1", createdAt: new Date() },
 ];
 
 export function DebtManager() {

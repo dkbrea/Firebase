@@ -46,6 +46,19 @@ const formatDebtType = (type: DebtAccount["type"]) => {
   return type.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 };
 
+const getDayOrdinal = (day?: number): string => {
+  if (day === undefined || day === null) return "";
+  if (day >= 11 && day <= 13) {
+    return `${day}th`;
+  }
+  switch (day % 10) {
+    case 1: return `${day}st`;
+    case 2: return `${day}nd`;
+    case 3: return `${day}rd`;
+    default: return `${day}th`;
+  }
+};
+
 export function DebtList({ debtAccounts, onDeleteDebtAccount }: DebtListProps) {
 
   return (
@@ -68,7 +81,7 @@ export function DebtList({ debtAccounts, onDeleteDebtAccount }: DebtListProps) {
                 ${debt.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
-            <div className="flex justify-between text-sm">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                 <div>
                     <p className="text-xs text-muted-foreground">APR</p>
                     <p className="font-medium">{debt.apr.toFixed(2)}%</p>
@@ -77,6 +90,18 @@ export function DebtList({ debtAccounts, onDeleteDebtAccount }: DebtListProps) {
                     <p className="text-xs text-muted-foreground">Min. Payment</p>
                     <p className="font-medium">${debt.minimumPayment.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
+                {debt.paymentDayOfMonth && (
+                    <div>
+                        <p className="text-xs text-muted-foreground">Payment Day</p>
+                        <p className="font-medium">{getDayOrdinal(debt.paymentDayOfMonth)}</p>
+                    </div>
+                )}
+                {debt.paymentFrequency && (
+                    <div>
+                        <p className="text-xs text-muted-foreground">Frequency</p>
+                        <p className="font-medium capitalize">{debt.paymentFrequency}</p>
+                    </div>
+                )}
             </div>
           </CardContent>
           <CardFooter className="flex justify-end items-center gap-2 pt-4 border-t">
