@@ -122,14 +122,15 @@ export function VariableExpenseList({ categories, onUpdateCategoryAmount, onDele
                   </TableCell>
                 </TableRow>
               ))}
-            </TableBody>
-            {categories.length > 0 && (
+              {/* Ensure this summary row is part of TableBody or TableFooter */}
+              {categories.length > 0 && (
                 <TableRow className="font-bold border-t-2 bg-muted/50">
                     <TableCell>Total Budgeted Variable Expenses</TableCell>
                     <TableCell className="text-right text-lg">${totalBudgeted.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
                     <TableCell></TableCell>
                 </TableRow>
-            )}
+              )}
+            </TableBody>
           </Table>
         )}
       </CardContent>
