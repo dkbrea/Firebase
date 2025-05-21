@@ -57,8 +57,8 @@ const formSchemaBase = z.object({
 });
 
 const refinedFormSchema = formSchemaBase.superRefine((data, ctx) => {
-  // Validate endDate relative to startDate or semiMonthly dates
-  if (data.endDate) {
+  // Validate endDate relative to startDate or semiMonthly dates only if type is not income
+  if (data.type !== 'income' && data.endDate) {
     if (data.frequency !== 'semi-monthly' && data.startDate && data.endDate < data.startDate) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -105,7 +105,7 @@ const refinedFormSchema = formSchemaBase.superRefine((data, ctx) => {
         path: ["semiMonthlySecondPayDate"],
       });
     }
-  } else {
+  } else { // Not semi-monthly
     if (!data.startDate) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -128,6 +128,10 @@ interface AddRecurringItemDialogProps {
 
 export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecurringItemAdded }: AddRecurringItemDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false);
+  const [isSemiMonthlyFirstDatePickerOpen, setIsSemiMonthlyFirstDatePickerOpen] = useState(false);
+  const [isSemiMonthlySecondDatePickerOpen, setIsSemiMonthlySecondDatePickerOpen] = useState(false);
+  const [isEndDatePickerOpen, setIsEndDatePickerOpen] = useState(false);
 
   const form = useForm<AddRecurringItemFormValues>({
     resolver: zodResolver(refinedFormSchema),
@@ -153,26 +157,36 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
       type: undefined,
       amount: undefined,
       frequency: undefined,
-      startDate: selectedFrequency !== 'semi-monthly' ? new Date() : null,
-      semiMonthlyFirstPayDate: selectedFrequency === 'semi-monthly' ? new Date() : null,
-      semiMonthlySecondPayDate: selectedFrequency === 'semi-monthly' ? new Date() : null,
+      startDate: new Date(), // Will be adjusted by useEffect if needed
+      semiMonthlyFirstPayDate: null,
+      semiMonthlySecondPayDate: null,
       endDate: null,
       notes: "",
     });
+    setIsStartDatePickerOpen(false);
+    setIsSemiMonthlyFirstDatePickerOpen(false);
+    setIsSemiMonthlySecondDatePickerOpen(false);
+    setIsEndDatePickerOpen(false);
   }
 
   useEffect(() => {
-    // Reset specific date fields when frequency changes to ensure correct default/null state
     if (selectedFrequency === 'semi-monthly') {
         form.setValue('startDate', null);
         if (!form.getValues('semiMonthlyFirstPayDate')) form.setValue('semiMonthlyFirstPayDate', new Date());
-        if (!form.getValues('semiMonthlySecondPayDate')) form.setValue('semiMonthlySecondPayDate', new Date(new Date().setDate(new Date().getDate() + 15)) ); // Default 15 days after
+        if (!form.getValues('semiMonthlySecondPayDate')) form.setValue('semiMonthlySecondPayDate', new Date(new Date().setDate(new Date().getDate() + 15)) );
     } else {
         form.setValue('semiMonthlyFirstPayDate', null);
         form.setValue('semiMonthlySecondPayDate', null);
         if (!form.getValues('startDate')) form.setValue('startDate', new Date());
     }
   }, [selectedFrequency, form]);
+
+  useEffect(() => {
+    if (selectedType === 'income') {
+      form.setValue('endDate', null);
+      setIsEndDatePickerOpen(false); // Close if open
+    }
+  }, [selectedType, form]);
 
 
   async function onSubmit(values: AddRecurringItemFormValues) {
@@ -184,14 +198,14 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
         type: values.type,
         amount: values.amount,
         frequency: values.frequency,
-        endDate: values.endDate || undefined,
+        endDate: values.type === 'income' ? undefined : (values.endDate || undefined), // Ensure endDate is undefined for income
         notes: values.notes || undefined,
     };
 
     if (values.frequency === 'semi-monthly') {
         itemData.semiMonthlyFirstPayDate = values.semiMonthlyFirstPayDate;
         itemData.semiMonthlySecondPayDate = values.semiMonthlySecondPayDate;
-        itemData.startDate = null; // Ensure startDate is null for semi-monthly
+        itemData.startDate = null;
     } else {
         itemData.startDate = values.startDate;
         itemData.semiMonthlyFirstPayDate = null;
@@ -238,7 +252,7 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Type *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || undefined} >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select item type" />
@@ -276,7 +290,7 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Frequency *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || undefined}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select frequency" />
@@ -302,7 +316,7 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>{selectedType === 'income' ? 'Next Pay Date *' : 'Start Date *'}</FormLabel>
-                    <Popover>
+                    <Popover open={isStartDatePickerOpen} onOpenChange={setIsStartDatePickerOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
@@ -325,7 +339,10 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                         <Calendar
                           mode="single"
                           selected={field.value ? new Date(field.value) : undefined}
-                          onSelect={(date) => field.onChange(date)}
+                          onSelect={(date) => {
+                            field.onChange(date);
+                            setIsStartDatePickerOpen(false);
+                          }}
                           initialFocus
                         />
                       </PopoverContent>
@@ -344,7 +361,7 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
                       <FormLabel>First Upcoming Pay Date *</FormLabel>
-                      <Popover>
+                      <Popover open={isSemiMonthlyFirstDatePickerOpen} onOpenChange={setIsSemiMonthlyFirstDatePickerOpen}>
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button
@@ -367,7 +384,10 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                           <Calendar
                             mode="single"
                             selected={field.value ? new Date(field.value) : undefined}
-                            onSelect={(date) => field.onChange(date)}
+                            onSelect={(date) => {
+                              field.onChange(date);
+                              setIsSemiMonthlyFirstDatePickerOpen(false);
+                            }}
                             initialFocus
                           />
                         </PopoverContent>
@@ -382,7 +402,7 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
                       <FormLabel>Second Upcoming Pay Date *</FormLabel>
-                      <Popover>
+                      <Popover open={isSemiMonthlySecondDatePickerOpen} onOpenChange={setIsSemiMonthlySecondDatePickerOpen}>
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button
@@ -405,7 +425,10 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                           <Calendar
                             mode="single"
                             selected={field.value ? new Date(field.value) : undefined}
-                            onSelect={(date) => field.onChange(date)}
+                            onSelect={(date) => {
+                              field.onChange(date);
+                              setIsSemiMonthlySecondDatePickerOpen(false);
+                            }}
                           />
                         </PopoverContent>
                       </Popover>
@@ -416,43 +439,48 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
               </>
             )}
             
-            <FormField
-              control={form.control}
-              name="endDate"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>End Date (Optional)</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            format(new Date(field.value), "PPP")
-                          ) : (
-                            <span>Pick an end date</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value ? new Date(field.value) : undefined}
-                        onSelect={(date) => field.onChange(date)}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {selectedType !== 'income' && (
+              <FormField
+                control={form.control}
+                name="endDate"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>End Date (Optional)</FormLabel>
+                    <Popover open={isEndDatePickerOpen} onOpenChange={setIsEndDatePickerOpen}>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "w-full pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? (
+                              format(new Date(field.value), "PPP")
+                            ) : (
+                              <span>Pick an end date</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value ? new Date(field.value) : undefined}
+                          onSelect={(date) => {
+                            field.onChange(date);
+                            setIsEndDatePickerOpen(false);
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
              <FormField
               control={form.control}
               name="notes"
