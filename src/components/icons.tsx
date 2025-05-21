@@ -28,8 +28,8 @@ export const Icons = {
   Recurring: CalendarClock,
   Budget: ClipboardList, 
   Goals: Flag,
-  Investments: TrendingUp,
-  Reports: BarChart3, // Added for Reports
+  Investments: TrendingUp, // This is the key icon for the Investments page navigation
+  Reports: BarChart3, 
   Auth: Users,
   Logout: LogOut,
   Settings: Settings,
@@ -70,7 +70,7 @@ export const Icons = {
   ),
   DebtTypeOther: HelpCircle,
   TrendingDown: TrendingDown,
-  // TrendingUp is already defined
+  TrendingUp: TrendingUp, // Explicitly ensuring TrendingUp is here for the report
   ReceiptText: ReceiptText,
   // Goal specific icons
   GoalDefault: CircleDollarSign, 
@@ -89,16 +89,16 @@ export const Icons = {
   InvestmentOther: DollarSign, 
   RefreshCw: RefreshCw,
   Settings2: Settings2,
-  Clock: Clock, // Used in InvestmentManager and Report tabs
-  BarChartBig: BarChartBig, // Ensuring this is explicitly here
+  Clock: Clock, 
+  BarChartBig: BarChartBig, 
   Info: Info,
   // Report specific icons
-  PieChart: PieChart, // For Spending by Category tab icon (alternative)
-  Download: Download, // For Export button
-  CalendarDays: CalendarDays, // For "Last 6 months" button
-  History: History, // For Spending by Category tab icon (clock-like)
-  FileTextIcon: FileTextIcon, // For Tax Report tab icon
-  LineChartIcon: LineChart, // For Spending Trends tab icon
+  PieChart: PieChart, 
+  Download: Download, 
+  CalendarDays: CalendarDays, 
+  History: History, 
+  FileTextIcon: FileTextIcon, 
+  LineChartIcon: LineChart, 
 };
 
 export default Icons;
