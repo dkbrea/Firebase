@@ -1,6 +1,7 @@
 
 "use client";
 
+import * as React from "react"; // Added React import
 import type { MonthlyForecast } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
