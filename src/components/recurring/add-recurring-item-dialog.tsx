@@ -49,41 +49,29 @@ const formSchemaBase = z.object({
     z.number({ invalid_type_error: "Amount must be a number." }).positive({ message: "Amount must be positive." })
   ),
   frequency: z.enum(recurringFrequencies, { required_error: "Please select a frequency." }),
-  startDate: z.date().nullable().optional(),
-  lastRenewalDate: z.date().nullable().optional(),
+  startDate: z.date().nullable().optional(), // Next Pay Date / Next Due Date
+  lastRenewalDate: z.date().nullable().optional(), // For subscriptions
   semiMonthlyFirstPayDate: z.date().nullable().optional(),
   semiMonthlySecondPayDate: z.date().nullable().optional(),
-  endDate: z.date().nullable().optional(),
+  endDate: z.date().nullable().optional(), // Only for subscriptions
   notes: z.string().max(200, "Notes cannot exceed 200 characters.").optional(),
   categoryId: z.string().nullable().optional() as z.ZodType<PredefinedRecurringCategoryValue | null | undefined>,
 });
 
 const refinedFormSchema = formSchemaBase.superRefine((data, ctx) => {
-  const today = startOfDay(new Date());
-
-  // End date validation
-  if (data.type !== 'income' && data.endDate) {
-    let baseDateForEndDateValidation: Date | null = null;
-    if (data.type === 'subscription' && data.lastRenewalDate) {
-      baseDateForEndDateValidation = data.lastRenewalDate;
-    } else if (data.frequency === 'semi-monthly' && data.semiMonthlySecondPayDate) {
-      baseDateForEndDateValidation = data.semiMonthlySecondPayDate;
-    } else if (data.frequency === 'semi-monthly' && data.semiMonthlyFirstPayDate && !data.semiMonthlySecondPayDate) {
-        baseDateForEndDateValidation = data.semiMonthlyFirstPayDate;
-    } else if (data.startDate) {
-      baseDateForEndDateValidation = data.startDate;
-    }
-    if (baseDateForEndDateValidation && data.endDate < baseDateForEndDateValidation) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "End date cannot be before the relevant start/renewal/pay date.", path: ["endDate"] });
-    }
-  }
-
-  // Date field requirements based on type and frequency
+  // Date field requirements and validations based on type and frequency
   if (data.type === 'subscription') {
     if (!data.lastRenewalDate) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Last renewal date is required for subscriptions.", path: ["lastRenewalDate"] });
     }
-  } else if (data.frequency === 'semi-monthly') {
+    if (data.endDate && data.lastRenewalDate && data.endDate < data.lastRenewalDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "End date cannot be before the last renewal date for subscriptions.",
+        path: ["endDate"],
+      });
+    }
+  } else if (data.frequency === 'semi-monthly') { // Typically income or fixed-expense
     if (!data.semiMonthlyFirstPayDate) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "First upcoming pay date is required.", path: ["semiMonthlyFirstPayDate"] });
     }
@@ -93,7 +81,7 @@ const refinedFormSchema = formSchemaBase.superRefine((data, ctx) => {
     if (data.semiMonthlyFirstPayDate && data.semiMonthlySecondPayDate && data.semiMonthlySecondPayDate <= data.semiMonthlyFirstPayDate) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Second pay date must be after the first.", path: ["semiMonthlySecondPayDate"] });
     }
-  } else { // Not a subscription, not semi-monthly
+  } else { // Income or Fixed Expense (not semi-monthly, not subscription)
     if (!data.startDate) {
       const message = data.type === 'income' ? "Next pay date is required." : "Next due date is required.";
       ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: ["startDate"] });
@@ -118,7 +106,7 @@ interface AddRecurringItemDialogProps {
 
 export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecurringItemAdded }: AddRecurringItemDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false);
+  const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false); // For Next Pay/Due Date
   const [isLastRenewalDatePickerOpen, setIsLastRenewalDatePickerOpen] = useState(false);
   const [isSemiMonthlyFirstDatePickerOpen, setIsSemiMonthlyFirstDatePickerOpen] = useState(false);
   const [isSemiMonthlySecondDatePickerOpen, setIsSemiMonthlySecondDatePickerOpen] = useState(false);
@@ -152,32 +140,48 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
   }
 
   useEffect(() => {
+    // Clear/set date fields based on type and frequency
     if (selectedType === 'subscription') {
       form.setValue('startDate', null);
       form.setValue('semiMonthlyFirstPayDate', null);
       form.setValue('semiMonthlySecondPayDate', null);
       if (!form.getValues('lastRenewalDate')) form.setValue('lastRenewalDate', startOfDay(new Date()));
-    } else if (selectedFrequency === 'semi-monthly') {
+      // endDate is allowed for subscriptions
+    } else if (selectedFrequency === 'semi-monthly') { // Typically Income or Fixed Expense
       form.setValue('startDate', null);
       form.setValue('lastRenewalDate', null);
       if (!form.getValues('semiMonthlyFirstPayDate')) form.setValue('semiMonthlyFirstPayDate', startOfDay(new Date()));
       if (!form.getValues('semiMonthlySecondPayDate')) form.setValue('semiMonthlySecondPayDate', startOfDay(new Date(new Date().setDate(new Date().getDate() + 15))));
-      form.setValue('categoryId', null); 
-    } else { 
+      if (selectedType === 'income') form.setValue('categoryId', null);
+      // endDate is NOT allowed for semi-monthly income/fixed-expense
+      form.setValue('endDate', null);
+      setIsEndDatePickerOpen(false);
+    } else { // Income or Fixed Expense (not semi-monthly, not subscription)
       form.setValue('lastRenewalDate', null);
       form.setValue('semiMonthlyFirstPayDate', null);
       form.setValue('semiMonthlySecondPayDate', null);
       if (!form.getValues('startDate')) form.setValue('startDate', startOfDay(new Date()));
-       if (selectedType === 'income') { 
+       if (selectedType === 'income') {
          form.setValue('categoryId', null);
        }
+      // endDate is NOT allowed for these types either
+      form.setValue('endDate', null);
+      setIsEndDatePickerOpen(false);
     }
 
-    if (selectedType === 'income') {
-      form.setValue('endDate', null);
-      setIsEndDatePickerOpen(false); // Ensure picker is closed
-      form.setValue('categoryId', null);
+    // General rule for categoryId and endDate based on type
+    if (selectedType === 'income' || selectedType === 'fixed-expense') {
+        form.setValue('endDate', null);
+        setIsEndDatePickerOpen(false);
+        if (selectedType === 'income') {
+            form.setValue('categoryId', null);
+        }
     }
+    if (selectedType !== 'subscription' && selectedType !== 'fixed-expense') {
+        form.setValue('categoryId', null);
+    }
+
+
   }, [selectedType, selectedFrequency, form]);
 
 
@@ -190,9 +194,9 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
         type: values.type,
         amount: values.amount,
         frequency: values.frequency,
-        endDate: values.type === 'income' ? undefined : (values.endDate || undefined),
         notes: values.notes || undefined,
         categoryId: (values.type === 'subscription' || values.type === 'fixed-expense') ? values.categoryId : null,
+        endDate: values.type === 'subscription' ? (values.endDate || undefined) : undefined,
     };
 
     if (values.type === 'subscription') {
@@ -205,7 +209,7 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
         itemData.semiMonthlySecondPayDate = values.semiMonthlySecondPayDate ? startOfDay(values.semiMonthlySecondPayDate) : null;
         itemData.startDate = null;
         itemData.lastRenewalDate = null;
-    } else {
+    } else { // Income or Fixed Expense (not semi-monthly, not subscription)
         itemData.startDate = values.startDate ? startOfDay(values.startDate) : null;
         itemData.lastRenewalDate = null;
         itemData.semiMonthlyFirstPayDate = null;
@@ -221,14 +225,17 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
   const getPrimaryDateLabel = () => {
     if (selectedType === 'income') return "Next Pay Date *";
     if (selectedType === 'fixed-expense') return "Next Due Date *";
-    // This label is for the 'startDate' field which is hidden for subscriptions and semi-monthly.
-    // So, this default won't typically be seen if logic is correct.
-    return "Primary Date Field *"; 
+    return "Primary Date Field *"; // Should not be visible if logic is correct
   };
 
+  // Determine which date fields to show based on type and frequency
   const showPrimaryDateField = selectedType !== 'subscription' && selectedFrequency !== 'semi-monthly';
+  const showLastRenewalDateField = selectedType === 'subscription';
+  const showSemiMonthlyDateFields = selectedType !== 'subscription' && selectedFrequency === 'semi-monthly';
+  
   const showCategoryField = selectedType === 'subscription' || selectedType === 'fixed-expense';
-  const showEndDateField = selectedType !== 'income';
+  const showEndDateField = selectedType === 'subscription';
+
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
@@ -349,7 +356,7 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
               )}
             />
 
-            {selectedType === 'subscription' && (
+            {showLastRenewalDateField && (
               <FormField
                 control={form.control}
                 name="lastRenewalDate"
@@ -419,7 +426,7 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
               />
             )}
 
-            {selectedType !== 'subscription' && selectedFrequency === 'semi-monthly' && (
+            {showSemiMonthlyDateFields && (
               <>
                 <FormField
                   control={form.control}
@@ -547,5 +554,3 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
     </Dialog>
   );
 }
-
-    
