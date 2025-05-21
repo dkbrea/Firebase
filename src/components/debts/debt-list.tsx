@@ -46,8 +46,7 @@ const formatDebtType = (type: DebtAccount["type"]) => {
   return type.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 };
 
-const getDayOrdinal = (day?: number): string => {
-  if (day === undefined || day === null) return "";
+const getDayOrdinal = (day: number): string => {
   if (day >= 11 && day <= 13) {
     return `${day}th`;
   }
@@ -90,18 +89,14 @@ export function DebtList({ debtAccounts, onDeleteDebtAccount }: DebtListProps) {
                     <p className="text-xs text-muted-foreground">Min. Payment</p>
                     <p className="font-medium">${debt.minimumPayment.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
-                {debt.paymentDayOfMonth && (
-                    <div>
-                        <p className="text-xs text-muted-foreground">Payment Day</p>
-                        <p className="font-medium">{getDayOrdinal(debt.paymentDayOfMonth)}</p>
-                    </div>
-                )}
-                {debt.paymentFrequency && (
-                    <div>
-                        <p className="text-xs text-muted-foreground">Frequency</p>
-                        <p className="font-medium capitalize">{debt.paymentFrequency}</p>
-                    </div>
-                )}
+                <div>
+                    <p className="text-xs text-muted-foreground">Payment Day</p>
+                    <p className="font-medium">{getDayOrdinal(debt.paymentDayOfMonth)}</p>
+                </div>
+                <div>
+                    <p className="text-xs text-muted-foreground">Frequency</p>
+                    <p className="font-medium capitalize">{debt.paymentFrequency}</p>
+                </div>
             </div>
           </CardContent>
           <CardFooter className="flex justify-end items-center gap-2 pt-4 border-t">

@@ -57,8 +57,8 @@ export interface DebtAccount {
   balance: number;
   apr: number; // Annual Percentage Rate, e.g., 19.9 for 19.9%
   minimumPayment: number;
-  paymentDayOfMonth?: number; // e.g., 1, 15, 31
-  paymentFrequency?: PaymentFrequency;
+  paymentDayOfMonth: number; // e.g., 1, 15, 31
+  paymentFrequency: PaymentFrequency;
   userId: string;
   createdAt: Date;
 }
@@ -70,3 +70,4 @@ export interface DebtPlan {
   strategy: DebtPayoffStrategy | null;
   userId: string;
 }
+

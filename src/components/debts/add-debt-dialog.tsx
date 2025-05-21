@@ -54,11 +54,11 @@ const formSchema = z.object({
     (val) => {
       if (typeof val === 'string' && val.trim() !== '') return parseInt(val, 10);
       if (typeof val === 'number') return val;
-      return undefined;
+      return undefined; // Keep undefined for Zod to catch required error if not provided
     },
-    z.number().int().min(1).max(31).optional()
+    z.number({required_error: "Payment day is required."}).int().min(1, {message: "Day must be between 1 and 31."}).max(31, {message: "Day must be between 1 and 31."})
   ),
-  paymentFrequency: z.enum(paymentFrequencies).optional(),
+  paymentFrequency: z.enum(paymentFrequencies, { required_error: "Please select a payment frequency." }),
 });
 
 type AddDebtFormValues = z.infer<typeof formSchema>;
@@ -81,8 +81,8 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded }: A
       balance: undefined,
       apr: undefined,
       minimumPayment: undefined,
-      paymentDayOfMonth: undefined,
-      paymentFrequency: undefined,
+      paymentDayOfMonth: undefined, // Keep undefined to allow placeholder to show
+      paymentFrequency: undefined, // Keep undefined to allow placeholder to show
     },
   });
 
@@ -91,11 +91,7 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded }: A
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 700));
     
-    onDebtAdded({
-        ...values,
-        paymentDayOfMonth: values.paymentDayOfMonth || undefined,
-        paymentFrequency: values.paymentFrequency || undefined,
-    });
+    onDebtAdded(values); // Values now fully match the required structure
     form.reset();
     setIsLoading(false);
     onOpenChange(false); // Close dialog on success
@@ -197,7 +193,7 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded }: A
               name="paymentDayOfMonth"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Payment Day of Month (Optional)</FormLabel>
+                  <FormLabel>Payment Day of Month *</FormLabel>
                   <FormControl>
                     <Input type="number" min="1" max="31" placeholder="e.g., 15" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} />
                   </FormControl>
@@ -210,7 +206,7 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded }: A
               name="paymentFrequency"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Payment Frequency (Optional)</FormLabel>
+                  <FormLabel>Payment Frequency *</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
