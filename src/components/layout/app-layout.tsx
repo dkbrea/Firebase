@@ -27,7 +27,7 @@ const navItems: NavItem[] = [
   { href: "/debts", label: "Debt Plan", icon: Icons.Debts },
   { href: "/recurring", label: "Recurring", icon: Icons.Recurring },
   { href: "/budget", label: "Budget", icon: Icons.Budget },
-  { href: "/goals", label: "Goals", icon: Icons.Goals }, // Added Goals navigation item
+  { href: "/goals", label: "Goals", icon: Icons.Goals },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -76,7 +76,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </Link>
         ))}
       </nav>
-      <Separator className="bg-sidebar-border mx-2" />
+      <Separator className="bg-sidebar-border mx-2 my-2" />
       <div className="p-4 shrink-0">
         <UserNav />
       </div>
@@ -108,7 +108,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </SheetContent>
         </Sheet>
         
-        <main className="flex-1 flex flex-col p-4 md:p-6 overflow-auto bg-background relative">
+        <main className="flex-1 flex flex-col p-4 md:p-6 overflow-y-auto overflow-x-hidden bg-background relative">
           {/* Add padding to main content on mobile to prevent overlap with fixed trigger */}
           <div className="lg:pt-0 pt-[64px]"> 
             {children}
