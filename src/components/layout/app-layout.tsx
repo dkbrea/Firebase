@@ -91,7 +91,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </aside>
       
       {/* Main content area and Mobile Sheet wrapper */}
-      <div className="flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-screen overflow-hidden"> {/* Added overflow-hidden here */}
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
            <SheetTrigger asChild>
             <Button 
