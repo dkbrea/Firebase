@@ -1,6 +1,6 @@
 
 import type { SVGProps } from "react";
-import { Landmark, LayoutDashboard, ListPlus, CreditCard, Users, LogOut, Settings, Wallet, PiggyBank, Library, ShieldCheck, MoreHorizontal, Edit, Trash, DollarSign, HelpCircle, CircleDollarSign, Target, TrendingDown, TrendingUp, ReceiptText, CalendarClock, ClipboardList, Flag, Home, Car, Plane, Briefcase, GraduationCap, Gift } from 'lucide-react';
+import { Landmark, LayoutDashboard, ListPlus, CreditCard, Users, LogOut, Settings, Wallet, PiggyBank, Library, ShieldCheck, MoreHorizontal, Edit, Trash, DollarSign, HelpCircle, CircleDollarSign, Target, TrendingDown, TrendingUp, ReceiptText, CalendarClock, ClipboardList, Flag, Home, Car, Plane, Briefcase, GraduationCap, Gift, LineChart, Coins, BarChart3 } from 'lucide-react';
 
 export const Icons = {
   Logo: (props: SVGProps<SVGSVGElement>) => (
@@ -27,7 +27,8 @@ export const Icons = {
   Debts: Target,
   Recurring: CalendarClock,
   Budget: ClipboardList, 
-  Goals: Flag, // Added Goals icon
+  Goals: Flag,
+  Investments: TrendingUp, // Added Investments icon
   Auth: Users,
   Logout: LogOut,
   Settings: Settings,
@@ -67,18 +68,23 @@ export const Icons = {
   ),
   DebtTypeOther: HelpCircle,
   TrendingDown: TrendingDown,
-  TrendingUp: TrendingUp,
+  TrendingUp: TrendingUp, // Already here, good for investments
   ReceiptText: ReceiptText,
   // Goal specific icons
-  GoalDefault: CircleDollarSign, // Default goal icon
+  GoalDefault: CircleDollarSign, 
   Home: Home,
   Car: Car,
   Plane: Plane,
   Briefcase: Briefcase,
   GraduationCap: GraduationCap,
   Gift: Gift,
-  PiggyBank: PiggyBank, // Already present
-  ShieldCheck: ShieldCheck, // Already present
+  PiggyBank: PiggyBank, 
+  ShieldCheck: ShieldCheck,
+  // Investment Account Type Icons
+  InvestmentBrokerage: LineChart,
+  InvestmentRetirement: BarChart3, // Using BarChart3 for Retirement (IRA/401k)
+  InvestmentCrypto: Coins,
+  InvestmentOther: DollarSign, // General for other investments
 };
 
 export default Icons;

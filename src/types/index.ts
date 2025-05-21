@@ -103,11 +103,11 @@ export interface RecurringItem {
   type: RecurringItemType;
   amount: number; // Always positive, type determines inflow/outflow
   frequency: RecurringFrequency;
-  startDate?: Date | null; // Used if type is 'income' or 'fixed-expense' AND frequency is NOT 'semi-monthly'
+  startDate?: Date | null; // Used if type is 'income' or 'fixed-expense' AND frequency is NOT 'semi-monthly'. Not used for 'subscription'.
   lastRenewalDate?: Date | null; // Used if type IS 'subscription'
   semiMonthlyFirstPayDate?: Date | null; // Used if frequency IS 'semi-monthly'
   semiMonthlySecondPayDate?: Date | null; // Used if frequency IS 'semi-monthly'
-  endDate?: Date | null; // Only applicable for 'subscription' type
+  endDate?: Date | null; // Only applicable for 'subscription' type. Not for 'income' or 'fixed-expense'.
   notes?: string;
   userId: string;
   createdAt: Date;
@@ -162,6 +162,21 @@ export interface FinancialGoalWithContribution extends FinancialGoal {
   monthlyContribution: number;
   monthsRemaining: number;
 }
+
+// Investment Types
+export const investmentAccountTypes = ['brokerage', 'ira', '401k', 'crypto', 'other'] as const;
+export type InvestmentAccountType = typeof investmentAccountTypes[number];
+
+export interface InvestmentAccount {
+  id: string;
+  name: string;
+  type: InvestmentAccountType;
+  institution?: string;
+  currentValue: number;
+  userId: string;
+  createdAt: Date;
+}
+
 
 // Budget Forecast Types (Updated)
 export interface MonthlyForecastIncomeItem {
