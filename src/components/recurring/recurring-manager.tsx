@@ -11,7 +11,12 @@ import { AddRecurringItemDialog } from "./add-recurring-item-dialog";
 import { RecurringList } from "./recurring-list";
 import { RecurringCalendarView } from "./recurring-calendar-view";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { addDays, addWeeks, addMonths, addQuarters, addYears, isPast, isSameDay, setDate, getDate, startOfDay } from "date-fns";
+import { RecurringSummaryCards } from "./recurring-summary-cards";
+import { 
+  addDays, addWeeks, addMonths, addQuarters, addYears, 
+  isPast, isSameDay, setDate, getDate, startOfDay, 
+  startOfMonth, endOfMonth, isWithinInterval, getDaysInMonth 
+} from "date-fns";
 
 const mockRecurringItems: RecurringItem[] = [
   { id: "rec1", name: "Salary", type: "income", amount: 3000, frequency: "monthly", startDate: new Date(2024, 0, 15), userId: "1", createdAt: new Date() },
@@ -27,22 +32,30 @@ const mockDebtAccounts: DebtAccount[] = [
   { id: "debt2", name: "Student Loan - Navient", type: "student-loan", balance: 22500.00, apr: 6.8, minimumPayment: 280, paymentDayOfMonth: 1, paymentFrequency: "monthly", userId: "1", createdAt: new Date(2023, 8, 1) },
 ];
 
+interface MonthlySummary {
+  income: number;
+  fixedExpenses: number;
+  subscriptions: number;
+  debtPayments: number;
+}
+
+// Helper to calculate the single next occurrence for list view
 const calculateNextRecurringItemOccurrence = (item: RecurringItem): Date => {
   const today = startOfDay(new Date());
+  const itemEndDate = item.endDate ? startOfDay(new Date(item.endDate)) : null;
 
-  if (item.endDate && startOfDay(new Date(item.endDate)) < today) {
-    return startOfDay(new Date(item.endDate)); // Item has ended
+  if (itemEndDate && itemEndDate < today) {
+    return itemEndDate; 
   }
   
   let baseDate: Date | null = null;
   let nextOccurrence: Date;
 
   if (item.type === 'subscription') {
-    if (!item.lastRenewalDate) return item.endDate || today; // Should not happen if validation is correct
+    if (!item.lastRenewalDate) return itemEndDate || today;
     baseDate = startOfDay(new Date(item.lastRenewalDate));
-    nextOccurrence = new Date(baseDate.getTime()); // Start with last renewal date for calculation
-    // For subscriptions, we need to advance from lastRenewalDate until we are >= today
-     while (nextOccurrence < today || isSameDay(nextOccurrence, baseDate) ) { // Ensure we are looking for the *next* occurrence after last renewal
+    nextOccurrence = new Date(baseDate.getTime()); 
+     while (nextOccurrence < today || isSameDay(nextOccurrence, baseDate) ) {
       switch (item.frequency) {
         case "daily": nextOccurrence = addDays(nextOccurrence, 1); break;
         case "weekly": nextOccurrence = addWeeks(nextOccurrence, 1); break;
@@ -50,37 +63,29 @@ const calculateNextRecurringItemOccurrence = (item: RecurringItem): Date => {
         case "monthly": nextOccurrence = addMonths(nextOccurrence, 1); break;
         case "quarterly": nextOccurrence = addQuarters(nextOccurrence, 1); break;
         case "yearly": nextOccurrence = addYears(nextOccurrence, 1); break;
-        default: return item.endDate || today; // Should not happen (e.g. semi-monthly handled below)
+        default: return itemEndDate || today;
       }
-      if (item.endDate && nextOccurrence > startOfDay(new Date(item.endDate))) {
-        return startOfDay(new Date(item.endDate));
-      }
+      if (itemEndDate && nextOccurrence > itemEndDate) return itemEndDate;
     }
   } else if (item.frequency === 'semi-monthly') {
     const date1 = item.semiMonthlyFirstPayDate ? startOfDay(new Date(item.semiMonthlyFirstPayDate)) : null;
     const date2 = item.semiMonthlySecondPayDate ? startOfDay(new Date(item.semiMonthlySecondPayDate)) : null;
-    let upcomingSemiMonthlyDate: Date | null = null;
+    
+    let upcomingDates = [];
+    if (date1 && (!itemEndDate || date1 <= itemEndDate) && date1 >= today) upcomingDates.push(date1);
+    if (date2 && (!itemEndDate || date2 <= itemEndDate) && date2 >= today) upcomingDates.push(date2);
 
-    if (date1 && date1 >= today) upcomingSemiMonthlyDate = date1;
-    if (date2 && date2 >= today) {
-      if (!upcomingSemiMonthlyDate || date2 < upcomingSemiMonthlyDate) {
-        upcomingSemiMonthlyDate = date2;
-      }
+    if (upcomingDates.length > 0) {
+      nextOccurrence = upcomingDates.sort((a,b) => a.getTime() - b.getTime())[0];
+    } else { // Both specific dates are in the past or after end date
+      return itemEndDate || (date2 || date1 || today); 
     }
-    if (upcomingSemiMonthlyDate) {
-      nextOccurrence = upcomingSemiMonthlyDate;
-    } else { // Both specific dates are in the past
-      return item.endDate || (date2 || date1 || today); // Effectively ended or misconfigured if no end date
-    }
-  } else { // Standard frequencies based on startDate
-    if (!item.startDate) return item.endDate || today; // Should not happen
+  } else { 
+    if (!item.startDate) return itemEndDate || today;
     baseDate = startOfDay(new Date(item.startDate));
     nextOccurrence = new Date(baseDate.getTime());
-    // If startDate is in the past, calculate forward
     while (nextOccurrence < today) {
-      if (item.endDate && nextOccurrence >= startOfDay(new Date(item.endDate))) {
-        return startOfDay(new Date(item.endDate)); // Item ended before reaching today
-      }
+      if (itemEndDate && nextOccurrence >= itemEndDate) return itemEndDate;
       switch (item.frequency) {
         case "daily": nextOccurrence = addDays(nextOccurrence, 1); break;
         case "weekly": nextOccurrence = addWeeks(nextOccurrence, 1); break;
@@ -93,126 +98,83 @@ const calculateNextRecurringItemOccurrence = (item: RecurringItem): Date => {
     }
   }
 
-  if (item.endDate && nextOccurrence > startOfDay(new Date(item.endDate))) {
-    return startOfDay(new Date(item.endDate)); // Calculated next date is past end date
-  }
+  if (itemEndDate && nextOccurrence > itemEndDate) return itemEndDate;
   return nextOccurrence;
 };
 
-
-// Helper to calculate next occurrence for DebtAccount
 const calculateNextDebtOccurrence = (debt: DebtAccount): Date => {
     const today = startOfDay(new Date());
-    // Anchor the calculation to the debt's creation month or current month if created long ago
-    const calculationMonthAnchor = new Date(Math.max(debt.createdAt.getTime(), new Date(today.getFullYear(), today.getMonth() -1, 1).getTime() ));
-    let anchorDate = setDate(startOfDay(new Date(calculationMonthAnchor.getFullYear(), calculationMonthAnchor.getMonth(), 1)), debt.paymentDayOfMonth);
+    const debtCreatedAt = startOfDay(new Date(debt.createdAt));
+    let currentDate = setDate(today, debt.paymentDayOfMonth);
 
-    if (startOfDay(debt.createdAt) > anchorDate && getDate(startOfDay(debt.createdAt)) > debt.paymentDayOfMonth) {
-      anchorDate = addMonths(anchorDate, 1);
+    if (currentDate < today) { // If payment day this month already passed
+        currentDate = addMonths(currentDate, 1);
     }
-     // If anchorDate is in the past due to paymentDayOfMonth already passed this month, advance it
-    if (anchorDate < today && getDate(today) > debt.paymentDayOfMonth) {
-        anchorDate = addMonths(anchorDate,1);
-    }
-
-
-    let nextDate = startOfDay(new Date(anchorDate));
-     // Correct initial nextDate if paymentDayOfMonth implies next month already
-    if (nextDate < today || (isSameDay(nextDate, today) && debt.paymentFrequency === 'monthly' && getDate(today) > debt.paymentDayOfMonth)) {
-         if (debt.paymentFrequency === "monthly") {
-             nextDate = addMonths(startOfDay(setDate(today, debt.paymentDayOfMonth)), getDate(today) > debt.paymentDayOfMonth ? 1:0);
+    
+    // Ensure we don't pick a date before creation
+    if (currentDate < debtCreatedAt) {
+         currentDate = setDate(debtCreatedAt, debt.paymentDayOfMonth);
+         if (currentDate < debtCreatedAt) { // if payment day in creation month already passed
+            currentDate = addMonths(currentDate, 1);
          }
     }
 
 
-    while (nextDate < today) {
-        switch (debt.paymentFrequency) {
-            case "monthly":
-                nextDate = addMonths(nextDate, 1);
-                break;
-            case "bi-weekly": 
-                 nextDate = addWeeks(nextDate, 2);
-                 break;
-            case "weekly": 
-                 nextDate = addWeeks(nextDate, 1);
-                 break;
-            default: // "annually" and "other" default to monthly for this simplified calculation
-                nextDate = addMonths(nextDate, 1); 
-                break; 
+    let nextDate = startOfDay(new Date(currentDate));
+    
+    // For non-monthly, we need to find the next valid occurrence from a reference point
+    if (debt.paymentFrequency !== 'monthly') {
+        let checkDate = setDate(debtCreatedAt, debt.paymentDayOfMonth);
+        if (checkDate < debtCreatedAt) checkDate = addMonths(checkDate, 1);
+
+        while(checkDate < today) {
+            switch (debt.paymentFrequency) {
+                case "bi-weekly": checkDate = addWeeks(checkDate, 2); break;
+                case "weekly": checkDate = addWeeks(checkDate, 1); break;
+                case "annually": checkDate = addYears(checkDate, 1); break;
+                // 'other' and unhandled cases default to monthly logic implicitly by falling through earlier
+                default: checkDate = addMonths(checkDate, 1); break; // Should be caught by monthly
+            }
         }
+        nextDate = checkDate;
     }
+    
     return nextDate;
 };
 
 
 export function RecurringManager() {
-  const [recurringItems, setRecurringItems] = useState<RecurringItem[]>([]);
-  const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>([]);
+  const [recurringItems, setRecurringItems] = useState<RecurringItem[]>(mockRecurringItems);
+  const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>(mockDebtAccounts);
   const [unifiedList, setUnifiedList] = useState<UnifiedRecurringListItem[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const { toast } = useToast();
+  const [monthlySummaries, setMonthlySummaries] = useState<MonthlySummary>({
+    income: 0,
+    fixedExpenses: 0,
+    subscriptions: 0,
+    debtPayments: 0,
+  });
 
-  useEffect(() => {
-    // Simulate fetching data
-    setRecurringItems(mockRecurringItems);
-    setDebtAccounts(mockDebtAccounts);
-  }, []);
-
+  // Effect for Unified List (for display)
   useEffect(() => {
     const today = startOfDay(new Date());
     const transformedRecurringItems: UnifiedRecurringListItem[] = recurringItems.map(item => {
       const nextOccurrenceDate = calculateNextRecurringItemOccurrence(item);
+      const itemEndDate = item.endDate ? startOfDay(new Date(item.endDate)) : null;
       let status: UnifiedRecurringListItem['status'] = "Upcoming";
 
-      const itemEndDate = item.endDate ? startOfDay(new Date(item.endDate)) : null;
-
-      if (itemEndDate && itemEndDate < today) {
+      if (itemEndDate && itemEndDate < today && isSameDay(nextOccurrenceDate, itemEndDate)) {
          status = "Ended";
-      } else if (item.frequency === 'semi-monthly') {
-        const date1 = item.semiMonthlyFirstPayDate ? startOfDay(new Date(item.semiMonthlyFirstPayDate)) : null;
-        const date2 = item.semiMonthlySecondPayDate ? startOfDay(new Date(item.semiMonthlySecondPayDate)) : null;
-        // If both specific semi-monthly dates are in the past AND no overall end date or end date is also past
-        if ((!date1 || date1 < today) && (!date2 || date2 < today)) {
-          if (!itemEndDate || itemEndDate < today) { // If no end date, or end date is past
-            status = "Ended";
-          }
-        }
-         // if nextOccurrenceDate is one of the semi-monthly dates, it's not necessarily ended yet
-        if (status !== "Ended" && (isSameDay(nextOccurrenceDate, date1 || new Date(0)) || isSameDay(nextOccurrenceDate, date2 || new Date(0)))) {
-           // if nextOccurrence is today, status is today
-        }
-
+      } else if (isSameDay(nextOccurrenceDate, today)) {
+        status = "Today";
       }
       
-      if (status !== "Ended" && isSameDay(nextOccurrenceDate, today)) {
-        status = "Today";
-      } else if (status !== "Ended" && nextOccurrenceDate < today) { 
-        // If after all calculations, the next occurrence is still in the past, and it wasn't caught by endDate logic
-        // This can happen if startDate was in past, and next projected occurrence is also past today, but before end date.
-        // For subscriptions, this means the last renewal was recent but next one is still past.
-        // This state might need a review or could indicate an "Overdue" status in a more complex system.
-        // For now, if it's not "Ended" and before "Today", it's still "Upcoming" based on future projection.
-        // The core `calculateNext...` should always return a date >= today if not ended.
-        // If `nextOccurrenceDate` is the `item.endDate` and that `endDate` is in the past, it is "Ended".
-         if (itemEndDate && isSameDay(nextOccurrenceDate, itemEndDate) && itemEndDate < today) {
-           status = "Ended";
-         }
-      }
-
-
       return {
-        id: item.id,
-        name: item.name,
-        itemDisplayType: item.type,
-        amount: item.amount,
-        frequency: item.frequency,
-        nextOccurrenceDate,
-        status,
-        isDebt: false,
-        endDate: item.endDate,
-        semiMonthlyFirstPayDate: item.semiMonthlyFirstPayDate,
-        semiMonthlySecondPayDate: item.semiMonthlySecondPayDate,
-        notes: item.notes,
+        id: item.id, name: item.name, itemDisplayType: item.type, amount: item.amount,
+        frequency: item.frequency, nextOccurrenceDate, status, isDebt: false,
+        endDate: item.endDate, semiMonthlyFirstPayDate: item.semiMonthlyFirstPayDate,
+        semiMonthlySecondPayDate: item.semiMonthlySecondPayDate, notes: item.notes,
         source: 'recurring',
       };
     });
@@ -220,15 +182,10 @@ export function RecurringManager() {
     const transformedDebtItems: UnifiedRecurringListItem[] = debtAccounts.map(debt => {
       const nextOccurrenceDate = calculateNextDebtOccurrence(debt);
       return {
-        id: debt.id,
-        name: `${debt.name} (Payment)`,
-        itemDisplayType: 'debt-payment',
-        amount: debt.minimumPayment,
-        frequency: debt.paymentFrequency,
-        nextOccurrenceDate,
+        id: debt.id, name: `${debt.name} (Payment)`, itemDisplayType: 'debt-payment',
+        amount: debt.minimumPayment, frequency: debt.paymentFrequency, nextOccurrenceDate,
         status: isSameDay(nextOccurrenceDate, today) ? "Today" : "Upcoming",
-        isDebt: true,
-        source: 'debt',
+        isDebt: true, source: 'debt',
       };
     });
 
@@ -241,6 +198,132 @@ export function RecurringManager() {
     setUnifiedList(combined);
 
   }, [recurringItems, debtAccounts]);
+
+  // Effect for Monthly Summaries
+  useEffect(() => {
+    const today = new Date();
+    const currentMonthStart = startOfMonth(today);
+    const currentMonthEnd = endOfMonth(today);
+    
+    let currentIncome = 0;
+    let currentFixedExpenses = 0;
+    let currentSubscriptions = 0;
+    let currentDebtPayments = 0;
+
+    recurringItems.forEach(item => {
+      if (item.endDate && startOfDay(new Date(item.endDate)) < currentMonthStart) return; // Item ended before this month
+
+      let itemMonthlyTotal = 0;
+      
+      if (item.frequency === 'semi-monthly') {
+        if (item.semiMonthlyFirstPayDate && isWithinInterval(startOfDay(new Date(item.semiMonthlyFirstPayDate)), { start: currentMonthStart, end: currentMonthEnd })) {
+          if (!item.endDate || startOfDay(new Date(item.semiMonthlyFirstPayDate)) <= startOfDay(new Date(item.endDate))) {
+            itemMonthlyTotal += item.amount;
+          }
+        }
+        if (item.semiMonthlySecondPayDate && isWithinInterval(startOfDay(new Date(item.semiMonthlySecondPayDate)), { start: currentMonthStart, end: currentMonthEnd })) {
+           if (!item.endDate || startOfDay(new Date(item.semiMonthlySecondPayDate)) <= startOfDay(new Date(item.endDate))) {
+            itemMonthlyTotal += item.amount;
+          }
+        }
+      } else {
+        let currentDate = item.type === 'subscription' 
+          ? (item.lastRenewalDate ? startOfDay(new Date(item.lastRenewalDate)) : currentMonthEnd) // if no renewal, skip
+          : (item.startDate ? startOfDay(new Date(item.startDate)) : currentMonthEnd); // if no start, skip
+
+        if (currentDate > currentMonthEnd) return; // initial date is after current month
+
+        // Adjust currentDate to be the first occurrence >= loopStartForIteration or relevant start
+        let loopStartForIteration = item.type === 'subscription' 
+            ? startOfDay(new Date(item.lastRenewalDate!)) 
+            : startOfDay(new Date(item.startDate!));
+        
+        let tempDate = new Date(loopStartForIteration);
+
+        // For subscriptions, the first actual "due" date is after the last renewal
+        if(item.type === 'subscription') {
+            switch (item.frequency) {
+                case "daily": tempDate = addDays(tempDate, 1); break;
+                case "weekly": tempDate = addWeeks(tempDate, 1); break;
+                case "bi-weekly": tempDate = addWeeks(tempDate, 2); break;
+                case "monthly": tempDate = addMonths(tempDate, 1); break;
+                case "quarterly": tempDate = addQuarters(tempDate, 1); break;
+                case "yearly": tempDate = addYears(tempDate, 1); break;
+            }
+        }
+
+
+        while (tempDate <= currentMonthEnd) {
+          if (item.endDate && tempDate > startOfDay(new Date(item.endDate))) break;
+
+          if (tempDate >= currentMonthStart) { // Check if it's within the current month or started before and passes through
+             if (isWithinInterval(tempDate, { start: currentMonthStart, end: currentMonthEnd })) {
+                itemMonthlyTotal += item.amount;
+             }
+          }
+          
+          if (tempDate > currentMonthEnd && item.frequency !== 'daily') break; // Optimization
+
+          switch (item.frequency) {
+            case "daily": tempDate = addDays(tempDate, 1); break;
+            case "weekly": tempDate = addWeeks(tempDate, 1); break;
+            case "bi-weekly": tempDate = addWeeks(tempDate, 2); break;
+            case "monthly": tempDate = addMonths(tempDate, 1); break;
+            case "quarterly": tempDate = addQuarters(tempDate, 1); break;
+            case "yearly": tempDate = addYears(tempDate, 1); break;
+            default: tempDate = addYears(tempDate, 100); break; // Should not happen
+          }
+        }
+      }
+
+      if (item.type === 'income') currentIncome += itemMonthlyTotal;
+      else if (item.type === 'fixed-expense') currentFixedExpenses += itemMonthlyTotal;
+      else if (item.type === 'subscription') currentSubscriptions += itemMonthlyTotal;
+    });
+
+    debtAccounts.forEach(debt => {
+      let debtMonthlyTotal = 0;
+      let paymentDate = setDate(currentMonthStart, debt.paymentDayOfMonth);
+
+      // Calculate occurrences for the current month based on frequency
+      if (debt.paymentFrequency === 'monthly') {
+        if (paymentDate < currentMonthStart) paymentDate = addMonths(paymentDate, 1); // if day passed for start of month
+        if (isWithinInterval(paymentDate, { start: currentMonthStart, end: currentMonthEnd })) {
+          debtMonthlyTotal += debt.minimumPayment;
+        }
+      } else {
+        let checkDate = setDate(startOfDay(new Date(debt.createdAt)), debt.paymentDayOfMonth);
+        if (checkDate < startOfDay(new Date(debt.createdAt))) {
+             checkDate = addMonths(checkDate,1); // ensure first payment day is not before creation month's payment day
+        }
+
+        while(checkDate <= currentMonthEnd) {
+            if (checkDate >= currentMonthStart) { // is in current month
+                 if (!isPast(checkDate) || isToday(checkDate)) { // only count if not in past (unless today)
+                    debtMonthlyTotal += debt.minimumPayment;
+                 }
+            }
+            switch (debt.paymentFrequency) {
+                case "weekly": checkDate = addWeeks(checkDate, 1); break;
+                case "bi-weekly": checkDate = addWeeks(checkDate, 2); break;
+                case "annually": checkDate = addYears(checkDate, 1); break;
+                // 'other' is not specifically handled for multiple occurrences in a month, assumes monthly-like for single check
+                default: checkDate = addYears(checkDate, 100); break; // Break loop
+            }
+        }
+      }
+      currentDebtPayments += debtMonthlyTotal;
+    });
+
+    setMonthlySummaries({
+      income: currentIncome,
+      fixedExpenses: currentFixedExpenses,
+      subscriptions: currentSubscriptions,
+      debtPayments: currentDebtPayments,
+    });
+
+  }, [recurringItems, debtAccounts]);
+
 
   const handleAddRecurringItem = (newItemData: Omit<RecurringItem, "id" | "userId" | "createdAt">) => {
     const newItem: RecurringItem = {
@@ -268,7 +351,6 @@ export function RecurringManager() {
         variant: "destructive",
       });
     }
-    // Deleting debt items from this view is not allowed, should be done in Debt Plan
   };
   
   const handleUpdateRecurringItem = (updatedItem: RecurringItem) => {
@@ -284,6 +366,8 @@ export function RecurringManager() {
 
   return (
     <div className="space-y-6">
+      <RecurringSummaryCards summaries={monthlySummaries} />
+
       <div className="flex justify-end">
         <AddRecurringItemDialog
           isOpen={isAddDialogOpen}
@@ -312,14 +396,8 @@ export function RecurringManager() {
                 items={unifiedList}
                 onDeleteItem={handleDeleteRecurringItem}
                 onEditItem={(itemToEdit) => { 
-                  // This would typically involve opening the AddRecurringItemDialog pre-filled
-                  // For now, simplified:
                   const originalItem = recurringItems.find(ri => ri.id === itemToEdit.id);
                   if (originalItem) {
-                    // To properly edit, you'd likely open the dialog with itemToEdit's values.
-                    // This requires AddRecurringItemDialog to accept an `existingItem` prop
-                    // and pre-fill the form. This is a more significant change to that dialog.
-                    // For now, a toast message indicates future capability.
                      toast({ title: "Edit (Full Implementation Coming Soon)", description: `Editing "${itemToEdit.name}" would happen here. For now, delete and re-add if complex changes are needed.`})
                   }
                 }}
