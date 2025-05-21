@@ -88,23 +88,27 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <SidebarNavContent />
       </aside>
       
-      {/* Main content area */}
+      {/* Main content area and Mobile Sheet wrapper */}
       <div className="flex flex-col min-h-screen">
-        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-            <SheetContent side="left" className="flex flex-col p-0 w-[280px] bg-sidebar border-r-0">
-              <SidebarNavContent onLinkClick={() => setMobileNavOpen(false)} />
-            </SheetContent>
-        </Sheet>
         
-        <main className="flex-1 flex flex-col p-4 md:p-6 overflow-auto bg-background relative">
+        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
           <SheetTrigger asChild>
-            <Button variant="outline" size="icon" className="lg:hidden fixed top-4 left-4 z-40 bg-card/80 backdrop-blur-sm hover:bg-card shadow-md">
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="lg:hidden fixed top-4 left-4 z-40 bg-card/80 backdrop-blur-sm hover:bg-card shadow-md"
+            >
               <Menu className="h-6 w-6" />
               <span className="sr-only">Toggle navigation menu</span>
             </Button>
           </SheetTrigger>
+          <SheetContent side="left" className="flex flex-col p-0 w-[280px] bg-sidebar border-r-0">
+            <SidebarNavContent onLinkClick={() => setMobileNavOpen(false)} />
+          </SheetContent>
+        </Sheet>
+        
+        <main className="flex-1 flex flex-col p-4 md:p-6 overflow-auto bg-background relative">
           {/* Add padding to main content on mobile to prevent overlap with fixed trigger */}
-          {/* The pt-16 is approx button height (h-10 ~ 40px) + top-4 (16px) + some buffer */}
           <div className="lg:pt-0 pt-[64px]"> 
             {children}
           </div>
