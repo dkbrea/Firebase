@@ -1,6 +1,11 @@
 
 "use client";
 
+// This component is being replaced by the list items in GoalsOverviewListCard.
+// It can be safely removed after confirming the new Goals Dashboard works.
+// For now, keeping it to avoid breaking changes if other parts still reference it,
+// but it's not used by the new GoalDashboard.
+
 import type { FinancialGoalWithContribution, GoalIconKey } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils"; // Added missing import
+import { cn } from "@/lib/utils"; 
 
 interface GoalCardProps {
   goal: FinancialGoalWithContribution;

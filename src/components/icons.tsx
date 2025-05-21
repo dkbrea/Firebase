@@ -1,6 +1,6 @@
 
 import type { SVGProps } from "react";
-import { Landmark, LayoutDashboard, ListPlus, CreditCard, Users, LogOut, Settings, Wallet, PiggyBank, Library, ShieldCheck, MoreHorizontal, Edit, Trash, DollarSign, HelpCircle, CircleDollarSign, Target, TrendingDown, TrendingUp, ReceiptText, CalendarClock, ClipboardList, Flag, Home, Car, Plane, Briefcase, GraduationCap, Gift, LineChart, Coins, BarChart3, RefreshCw, Settings2, Clock, BarChartBig, Info, PieChart, Download, CalendarDays, History, FileText as FileTextIcon } from 'lucide-react';
+import { Landmark, LayoutDashboard, ListPlus, CreditCard, Users, LogOut, Settings, Wallet, PiggyBank, Library, ShieldCheck, MoreHorizontal, Edit, Trash, DollarSign, HelpCircle, CircleDollarSign, Target, TrendingDown, TrendingUp, ReceiptText, CalendarClock, ClipboardList, Flag, Home, Car, Plane, Briefcase, GraduationCap, Gift, LineChart, Coins, BarChart3, RefreshCw, Settings2, Clock, BarChartBig, Info, PieChart, Download, CalendarDays, History, FileText as FileTextIcon, Bot, Percent, Activity, Lightbulb, ListChecks, ArrowUp, ArrowRight } from 'lucide-react';
 
 export const Icons = {
   Logo: (props: SVGProps<SVGSVGElement>) => (
@@ -27,7 +27,7 @@ export const Icons = {
   Debts: Target,
   Recurring: CalendarClock,
   Budget: ClipboardList, 
-  Goals: Flag, // Ensured Flag is here
+  Goals: Flag, 
   Investments: TrendingUp, 
   Reports: BarChart3, 
   Auth: Users,
@@ -70,7 +70,7 @@ export const Icons = {
   ),
   DebtTypeOther: HelpCircle,
   TrendingDown: TrendingDown,
-  TrendingUp: TrendingUp,
+  TrendingUp: TrendingUp, // Already defined
   ReceiptText: ReceiptText,
   // Goal specific icons
   GoalDefault: CircleDollarSign, 
@@ -98,7 +98,15 @@ export const Icons = {
   CalendarDays: CalendarDays, 
   History: History, 
   FileTextIcon: FileTextIcon, 
-  LineChartIcon: LineChart, 
+  LineChartIcon: LineChart,
+  // New Icons for Goal & Savings Dashboard
+  Bot: Bot,
+  Percent: Percent,
+  Activity: Activity,
+  Lightbulb: Lightbulb,
+  ListChecks: ListChecks,
+  ArrowUp: ArrowUp,
+  ArrowRight: ArrowRight,
 };
 
 export default Icons;

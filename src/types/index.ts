@@ -154,6 +154,7 @@ export interface BudgetCategory {
   id: string;
   name: string;
   budgetedAmount: number; 
+  // actualSpent?: number; // Future: for tracking actuals against budget
   userId: string;
   createdAt: Date;
 }
@@ -227,7 +228,7 @@ export interface MonthlyForecastSubscriptionItem {
 export interface MonthlyForecastDebtPaymentItem {
   id: string; 
   name: string;
-  totalAmountInMonth: number; 
+  totalAmountInMonth: number; // This is minimum payment
   debtType: DebtAccountType;
   additionalPayment?: number; 
 }
@@ -282,4 +283,25 @@ export interface NetWorthDataPoint {
   netWorth: number;
   assets: number;
   liabilities: number;
+}
+
+// Types for new Goal & Savings Dashboard
+export interface SavingsBreakdownItem {
+  name: string;
+  value: number; // currentAmount of the goal
+  color: string;
+}
+
+export interface GoalPerformanceDataPoint {
+  month: string; // e.g., "Jan"
+  saving: number;
+}
+
+export interface SavingsTransactionItem {
+  id: string;
+  date: Date;
+  goalName: string;
+  amount: number;
+  method: 'Auto-Save' | 'Manual';
+  status: 'Pending' | 'Completed' | 'Failed';
 }

@@ -1,10 +1,13 @@
 
 "use client";
 
+// This component is no longer used and will be replaced by GoalDashboard.
+// It can be safely deleted if GoalDashboard is fully implemented.
+
 import type { FinancialGoal, FinancialGoalWithContribution, GoalIconKey } from "@/types";
 import { useState, useEffect, useMemo } from "react";
 import { AddGoalDialog } from "./add-goal-dialog";
-import { GoalList } from "./goal-list";
+// import { GoalList } from "./goal-list"; // No longer used
 import { Button } from "@/components/ui/button";
 import { PlusCircle, Flag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -40,13 +43,13 @@ export function GoalManager() {
          monthlyContribution = amountNeeded;
       }
       else {
-        monthlyContribution = amountNeeded / monthsRemaining;
+        monthlyContribution = amountNeeded / (monthsRemaining + 1); // +1 because diffInMonths is exclusive of start
       }
       
       return {
         ...goal,
         monthsRemaining: Math.max(0, monthsRemaining), // Ensure months remaining is not negative
-        monthlyContribution: monthlyContribution > 0 ? monthlyContribution : 0,
+        monthlyContribution: monthlyContribution > 0 ? parseFloat(monthlyContribution.toFixed(2)) : 0,
       };
     }).sort((a,b) => new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime());
   }, [goals]);
@@ -103,11 +106,12 @@ export function GoalManager() {
       </div>
 
       {goalsWithContributions.length > 0 ? (
-        <GoalList 
-            goals={goalsWithContributions} 
-            onDeleteGoal={handleDeleteGoal}
-            onEditGoal={handleEditGoal} // Pass edit handler
-        />
+        // <GoalList 
+        //     goals={goalsWithContributions} 
+        //     onDeleteGoal={handleDeleteGoal}
+        //     onEditGoal={() => { /* onEditGoal expects a goalId, or actual goal to edit */ }} 
+        // />
+        <p className="text-muted-foreground">Goal list would appear here (GoalList component removed/replaced).</p>
       ) : (
         <div className="text-center py-12 border-2 border-dashed border-muted-foreground/30 rounded-lg">
           <Flag className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
@@ -127,4 +131,3 @@ export function GoalManager() {
     </div>
   );
 }
-
