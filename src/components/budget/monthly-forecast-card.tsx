@@ -2,12 +2,12 @@
 "use client";
 
 import * as React from "react";
-import type { MonthlyForecast, MonthlyForecastIncomeItem, MonthlyForecastFixedExpenseItem, MonthlyForecastSubscriptionItem, MonthlyForecastDebtPaymentItem } from "@/types";
+import type { MonthlyForecast } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, AlertTriangle, TrendingUp, TrendingDown, Package, Repeat, ListChecks, ShieldCheck, ReceiptText, Info, DollarSign, Building, CreditCard, HandCoins } from "lucide-react";
+import { CheckCircle2, AlertTriangle, TrendingUp, TrendingDown, ListChecks, ShieldCheck, Info, Building, CreditCard, HandCoins } from "lucide-react";
 
 interface MonthlyForecastCardProps {
   monthData: MonthlyForecast;
@@ -78,15 +78,6 @@ export function MonthlyForecastCard({ monthData, monthIndex }: MonthlyForecastCa
             itemClassName="text-blue-600"
         />
         <Separator className="my-2" />
-
-        <ForecastItemsSection
-            items={monthData.debtPaymentItems}
-            title="Debt Minimum Payments"
-            icon={<TrendingDown className="h-5 w-5 mr-2 text-red-500" />}
-            emptyMessage="No debt payments this month."
-            itemClassName="text-red-600"
-        />
-        <Separator className="my-2" />
         
         <div className="space-y-1">
             <h4 className="font-semibold text-foreground flex items-center mb-1">
@@ -101,6 +92,15 @@ export function MonthlyForecastCard({ monthData, monthIndex }: MonthlyForecastCa
                 </div>
             )) : <p className="text-xs text-muted-foreground pl-1 italic">No variable categories budgeted.</p>}
         </div>
+        <Separator className="my-2" />
+
+        <ForecastItemsSection
+            items={monthData.debtPaymentItems}
+            title="Debt Payments"
+            icon={<TrendingDown className="h-5 w-5 mr-2 text-red-500" />}
+            emptyMessage="No debt payments this month."
+            itemClassName="text-red-600"
+        />
         <Separator className="my-2" />
         
          <div className="space-y-1">
