@@ -26,3 +26,17 @@ export interface ExpenseByCategory {
   category: string;
   amount: number;
 }
+
+export type AccountType = 'checking' | 'savings' | 'credit card' | 'other';
+
+export interface Account {
+  id: string;
+  name: string;
+  type: AccountType;
+  bankName?: string;
+  last4?: string;
+  balance: number;
+  isPrimary: boolean;
+  userId: string;
+  createdAt: Date;
+}

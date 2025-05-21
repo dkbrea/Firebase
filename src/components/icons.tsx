@@ -1,5 +1,5 @@
 import type { SVGProps } from "react";
-import { Landmark, LayoutDashboard, ListPlus, CreditCard, Users, LogOut, Settings, Wallet } from 'lucide-react';
+import { Landmark, LayoutDashboard, ListPlus, CreditCard, Users, LogOut, Settings, Wallet, PiggyBank, Library, ShieldCheck, MoreHorizontal, Edit, Trash, DollarSign, HelpCircle, CircleDollarSign } from 'lucide-react';
 
 export const Icons = {
   Logo: (props: SVGProps<SVGSVGElement>) => (
@@ -22,11 +22,21 @@ export const Icons = {
   Dashboard: LayoutDashboard,
   Categories: ListPlus,
   Transactions: CreditCard,
+  Accounts: PiggyBank, // Changed from Library for more financial context
   Auth: Users,
   Logout: LogOut,
   Settings: Settings,
   Bank: Landmark,
   Wallet: Wallet,
+  Primary: ShieldCheck,
+  Edit: Edit,
+  Delete: Trash,
+  DollarSign: DollarSign,
+  AccountTypeChecking: Landmark,
+  AccountTypeSavings: PiggyBank,
+  AccountTypeCreditCard: CreditCard,
+  AccountTypeOther: HelpCircle,
+  MoreHorizontal: MoreHorizontal,
 };
 
 export default Icons;

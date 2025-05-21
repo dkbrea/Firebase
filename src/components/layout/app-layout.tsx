@@ -19,8 +19,9 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: Icons.Dashboard },
-  { href: "/categories", label: "Categories", icon: Icons.Categories },
   { href: "/transactions", label: "Transactions", icon: Icons.Transactions },
+  { href: "/categories", label: "Categories", icon: Icons.Categories },
+  { href: "/accounts", label: "Accounts", icon: Icons.Accounts },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
