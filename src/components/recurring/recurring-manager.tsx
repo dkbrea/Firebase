@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { RecurringItem, DebtAccount, UnifiedRecurringListItem, RecurringFrequency, PaymentFrequency } from "@/types";
+import type { RecurringItem, DebtAccount, UnifiedRecurringListItem, RecurringFrequency, PaymentFrequency, PredefinedRecurringCategoryValue } from "@/types";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,9 +20,9 @@ import {
 
 const mockRecurringItems: RecurringItem[] = [
   { id: "rec1", name: "Salary", type: "income", amount: 3000, frequency: "monthly", startDate: new Date(2024, 0, 15), userId: "1", createdAt: new Date() },
-  { id: "rec2", name: "Netflix Subscription", type: "subscription", amount: 15.99, frequency: "monthly", lastRenewalDate: new Date(2024, 6, 5), userId: "1", createdAt: new Date() },
-  { id: "rec3", name: "Rent", type: "fixed-expense", amount: 1200, frequency: "monthly", startDate: new Date(2024, 0, 1), userId: "1", createdAt: new Date() },
-  { id: "rec4", name: "Gym Membership", type: "subscription", amount: 40, frequency: "monthly", lastRenewalDate: new Date(2024, 5, 10),endDate: new Date(2024, 11, 10), userId: "1", createdAt: new Date() }, // Ended gym membership
+  { id: "rec2", name: "Netflix Subscription", type: "subscription", amount: 15.99, frequency: "monthly", lastRenewalDate: new Date(2024, 6, 5), userId: "1", createdAt: new Date(), categoryId: "subscriptions-media" },
+  { id: "rec3", name: "Rent", type: "fixed-expense", amount: 1200, frequency: "monthly", startDate: new Date(2024, 0, 1), userId: "1", createdAt: new Date(), categoryId: "housing" },
+  { id: "rec4", name: "Gym Membership", type: "subscription", amount: 40, frequency: "monthly", lastRenewalDate: new Date(2024, 5, 10),endDate: new Date(2024, 11, 10), userId: "1", createdAt: new Date(), categoryId: "health-wellness" }, // Ended gym membership
   { id: "rec5", name: "Freelance Project A", type: "income", amount: 500, frequency: "weekly", startDate: new Date(2024, 6, 1), userId: "1", createdAt: new Date(), endDate: new Date(2024, 8, 30) },
   { id: "rec6", name: "Military Pay", type: "income", amount: 2200, frequency: "semi-monthly", semiMonthlyFirstPayDate: new Date(2024, 6, 15), semiMonthlySecondPayDate: new Date(2024, 7, 1), userId: "1", createdAt: new Date() },
 ];
@@ -52,10 +52,11 @@ const calculateNextRecurringItemOccurrence = (item: RecurringItem): Date => {
   let nextOccurrence: Date;
 
   if (item.type === 'subscription') {
-    if (!item.lastRenewalDate) return itemEndDate || today;
+    if (!item.lastRenewalDate) return itemEndDate || today; // Should not happen if validation is correct
     baseDate = startOfDay(new Date(item.lastRenewalDate));
     nextOccurrence = new Date(baseDate.getTime()); 
-     while (nextOccurrence < today || isSameDay(nextOccurrence, baseDate) ) {
+     // Start from the day *after* last renewal to find next one
+    do {
       switch (item.frequency) {
         case "daily": nextOccurrence = addDays(nextOccurrence, 1); break;
         case "weekly": nextOccurrence = addWeeks(nextOccurrence, 1); break;
@@ -63,10 +64,10 @@ const calculateNextRecurringItemOccurrence = (item: RecurringItem): Date => {
         case "monthly": nextOccurrence = addMonths(nextOccurrence, 1); break;
         case "quarterly": nextOccurrence = addQuarters(nextOccurrence, 1); break;
         case "yearly": nextOccurrence = addYears(nextOccurrence, 1); break;
-        default: return itemEndDate || today;
+        default: return itemEndDate || today; // Should not happen
       }
       if (itemEndDate && nextOccurrence > itemEndDate) return itemEndDate;
-    }
+    } while (nextOccurrence < today);
   } else if (item.frequency === 'semi-monthly') {
     const date1 = item.semiMonthlyFirstPayDate ? startOfDay(new Date(item.semiMonthlyFirstPayDate)) : null;
     const date2 = item.semiMonthlySecondPayDate ? startOfDay(new Date(item.semiMonthlySecondPayDate)) : null;
@@ -74,14 +75,21 @@ const calculateNextRecurringItemOccurrence = (item: RecurringItem): Date => {
     let upcomingDates = [];
     if (date1 && (!itemEndDate || date1 <= itemEndDate) && date1 >= today) upcomingDates.push(date1);
     if (date2 && (!itemEndDate || date2 <= itemEndDate) && date2 >= today) upcomingDates.push(date2);
-
+    
+    // If both specified dates are in the past, consider it ended relative to those specific dates
+    // unless there's a general endDate that dictates otherwise.
+    // For next occurrence, pick the earliest future one. If none, return the later of the two (or endDate).
     if (upcomingDates.length > 0) {
       nextOccurrence = upcomingDates.sort((a,b) => a.getTime() - b.getTime())[0];
-    } else { // Both specific dates are in the past or after end date
-      return itemEndDate || (date2 || date1 || today); 
+    } else { 
+      // Both specified semi-monthly dates are in the past or beyond any item-specific end date.
+      // If an end date is set and is earlier than the past semi-monthly dates, that end date is the "next" (final) occurrence.
+      // Otherwise, use the later of the two semi-monthly dates as the effective "last" occurrence.
+      const lastSemiMonthlyDate = date2 && date1 ? (date2 > date1 ? date2 : date1) : (date2 || date1 || today);
+      return itemEndDate && itemEndDate < lastSemiMonthlyDate ? itemEndDate : lastSemiMonthlyDate;
     }
-  } else { 
-    if (!item.startDate) return itemEndDate || today;
+  } else { // Standard income or fixed-expense (not semi-monthly)
+    if (!item.startDate) return itemEndDate || today; // Should not happen if validation is correct
     baseDate = startOfDay(new Date(item.startDate));
     nextOccurrence = new Date(baseDate.getTime());
     while (nextOccurrence < today) {
@@ -93,7 +101,7 @@ const calculateNextRecurringItemOccurrence = (item: RecurringItem): Date => {
         case "monthly": nextOccurrence = addMonths(nextOccurrence, 1); break;
         case "quarterly": nextOccurrence = addQuarters(nextOccurrence, 1); break;
         case "yearly": nextOccurrence = addYears(nextOccurrence, 1); break;
-        default: return nextOccurrence;
+        default: return nextOccurrence; // Should not happen
       }
     }
   }
@@ -107,22 +115,19 @@ const calculateNextDebtOccurrence = (debt: DebtAccount): Date => {
     const debtCreatedAt = startOfDay(new Date(debt.createdAt));
     let currentDate = setDate(today, debt.paymentDayOfMonth);
 
-    if (currentDate < today) { // If payment day this month already passed
+    if (currentDate < today) { 
         currentDate = addMonths(currentDate, 1);
     }
     
-    // Ensure we don't pick a date before creation
     if (currentDate < debtCreatedAt) {
          currentDate = setDate(debtCreatedAt, debt.paymentDayOfMonth);
-         if (currentDate < debtCreatedAt) { // if payment day in creation month already passed
+         if (currentDate < debtCreatedAt) { 
             currentDate = addMonths(currentDate, 1);
          }
     }
 
-
     let nextDate = startOfDay(new Date(currentDate));
     
-    // For non-monthly, we need to find the next valid occurrence from a reference point
     if (debt.paymentFrequency !== 'monthly') {
         let checkDate = setDate(debtCreatedAt, debt.paymentDayOfMonth);
         if (checkDate < debtCreatedAt) checkDate = addMonths(checkDate, 1);
@@ -132,8 +137,7 @@ const calculateNextDebtOccurrence = (debt: DebtAccount): Date => {
                 case "bi-weekly": checkDate = addWeeks(checkDate, 2); break;
                 case "weekly": checkDate = addWeeks(checkDate, 1); break;
                 case "annually": checkDate = addYears(checkDate, 1); break;
-                // 'other' and unhandled cases default to monthly logic implicitly by falling through earlier
-                default: checkDate = addMonths(checkDate, 1); break; // Should be caught by monthly
+                default: checkDate = addMonths(checkDate, 1); break; 
             }
         }
         nextDate = checkDate;
@@ -168,6 +172,8 @@ export function RecurringManager() {
          status = "Ended";
       } else if (isSameDay(nextOccurrenceDate, today)) {
         status = "Today";
+      } else if (nextOccurrenceDate < today) { // If calculated next is still past (e.g. for ended semi-monthly)
+        status = "Ended";
       }
       
       return {
@@ -175,6 +181,7 @@ export function RecurringManager() {
         frequency: item.frequency, nextOccurrenceDate, status, isDebt: false,
         endDate: item.endDate, semiMonthlyFirstPayDate: item.semiMonthlyFirstPayDate,
         semiMonthlySecondPayDate: item.semiMonthlySecondPayDate, notes: item.notes,
+        categoryId: item.categoryId,
         source: 'recurring',
       };
     });
@@ -211,7 +218,7 @@ export function RecurringManager() {
     let currentDebtPayments = 0;
 
     recurringItems.forEach(item => {
-      if (item.endDate && startOfDay(new Date(item.endDate)) < currentMonthStart) return; // Item ended before this month
+      if (item.endDate && startOfDay(new Date(item.endDate)) < currentMonthStart) return; 
 
       let itemMonthlyTotal = 0;
       
@@ -227,20 +234,20 @@ export function RecurringManager() {
           }
         }
       } else {
-        let currentDate = item.type === 'subscription' 
-          ? (item.lastRenewalDate ? startOfDay(new Date(item.lastRenewalDate)) : currentMonthEnd) // if no renewal, skip
-          : (item.startDate ? startOfDay(new Date(item.startDate)) : currentMonthEnd); // if no start, skip
+        let baseIterationDate: Date | null = null;
+        if (item.type === 'subscription') {
+            if (!item.lastRenewalDate) return;
+            baseIterationDate = startOfDay(new Date(item.lastRenewalDate));
+        } else {
+            if (!item.startDate) return;
+            baseIterationDate = startOfDay(new Date(item.startDate));
+        }
 
-        if (currentDate > currentMonthEnd) return; // initial date is after current month
+        if (baseIterationDate > currentMonthEnd) return;
 
-        // Adjust currentDate to be the first occurrence >= loopStartForIteration or relevant start
-        let loopStartForIteration = item.type === 'subscription' 
-            ? startOfDay(new Date(item.lastRenewalDate!)) 
-            : startOfDay(new Date(item.startDate!));
+        let tempDate = new Date(baseIterationDate);
         
-        let tempDate = new Date(loopStartForIteration);
-
-        // For subscriptions, the first actual "due" date is after the last renewal
+        // For subscriptions, first actual payment is *after* last renewal. For others, it *is* the start date.
         if(item.type === 'subscription') {
             switch (item.frequency) {
                 case "daily": tempDate = addDays(tempDate, 1); break;
@@ -252,17 +259,16 @@ export function RecurringManager() {
             }
         }
 
-
         while (tempDate <= currentMonthEnd) {
           if (item.endDate && tempDate > startOfDay(new Date(item.endDate))) break;
 
-          if (tempDate >= currentMonthStart) { // Check if it's within the current month or started before and passes through
+          if (tempDate >= currentMonthStart) { 
              if (isWithinInterval(tempDate, { start: currentMonthStart, end: currentMonthEnd })) {
                 itemMonthlyTotal += item.amount;
              }
           }
           
-          if (tempDate > currentMonthEnd && item.frequency !== 'daily') break; // Optimization
+          if (tempDate > currentMonthEnd && item.frequency !== 'daily') break; 
 
           switch (item.frequency) {
             case "daily": tempDate = addDays(tempDate, 1); break;
@@ -271,7 +277,7 @@ export function RecurringManager() {
             case "monthly": tempDate = addMonths(tempDate, 1); break;
             case "quarterly": tempDate = addQuarters(tempDate, 1); break;
             case "yearly": tempDate = addYears(tempDate, 1); break;
-            default: tempDate = addYears(tempDate, 100); break; // Should not happen
+            default: tempDate = addYears(tempDate, 100); break; 
           }
         }
       }
@@ -283,33 +289,44 @@ export function RecurringManager() {
 
     debtAccounts.forEach(debt => {
       let debtMonthlyTotal = 0;
-      let paymentDate = setDate(currentMonthStart, debt.paymentDayOfMonth);
+      let paymentDateForMonth = setDate(currentMonthStart, debt.paymentDayOfMonth);
+      
+      // Make sure the first potential payment day for this month isn't before the debt was created
+      const debtCreationMonthStart = startOfMonth(new Date(debt.createdAt));
+      if (paymentDateForMonth < debtCreationMonthStart && debt.paymentDayOfMonth < getDate(new Date(debt.createdAt))) {
+           paymentDateForMonth = setDate(addMonths(paymentDateForMonth,1), debt.paymentDayOfMonth);
+      } else if (paymentDateForMonth < debtCreationMonthStart) {
+          paymentDateForMonth = setDate(debtCreationMonthStart, debt.paymentDayOfMonth);
+      }
 
-      // Calculate occurrences for the current month based on frequency
-      if (debt.paymentFrequency === 'monthly') {
-        if (paymentDate < currentMonthStart) paymentDate = addMonths(paymentDate, 1); // if day passed for start of month
-        if (isWithinInterval(paymentDate, { start: currentMonthStart, end: currentMonthEnd })) {
-          debtMonthlyTotal += debt.minimumPayment;
-        }
-      } else {
-        let checkDate = setDate(startOfDay(new Date(debt.createdAt)), debt.paymentDayOfMonth);
-        if (checkDate < startOfDay(new Date(debt.createdAt))) {
-             checkDate = addMonths(checkDate,1); // ensure first payment day is not before creation month's payment day
-        }
 
-        while(checkDate <= currentMonthEnd) {
-            if (checkDate >= currentMonthStart) { // is in current month
-                 if (!isPast(checkDate) || isToday(checkDate)) { // only count if not in past (unless today)
-                    debtMonthlyTotal += debt.minimumPayment;
-                 }
-            }
-            switch (debt.paymentFrequency) {
-                case "weekly": checkDate = addWeeks(checkDate, 1); break;
-                case "bi-weekly": checkDate = addWeeks(checkDate, 2); break;
-                case "annually": checkDate = addYears(checkDate, 1); break;
-                // 'other' is not specifically handled for multiple occurrences in a month, assumes monthly-like for single check
-                default: checkDate = addYears(checkDate, 100); break; // Break loop
-            }
+      let checkDate = new Date(paymentDateForMonth);
+      if (checkDate < currentMonthStart) { // if payment day already passed for current month's start, advance to next cycle start
+          switch (debt.paymentFrequency) {
+            case "weekly": checkDate = addWeeks(checkDate, 1); break;
+            case "bi-weekly": checkDate = addWeeks(checkDate, 2); break;
+            case "monthly": checkDate = addMonths(checkDate, 1); break;
+            case "annually": checkDate = addYears(checkDate, 1); break;
+            default: break; // 'other' assumes one check
+          }
+      }
+      
+      // Iterate through possible pay dates in the current month
+      while(isWithinInterval(checkDate, { start: currentMonthStart, end: currentMonthEnd })) {
+        if (checkDate >= startOfDay(new Date(debt.createdAt))) { // Ensure payment is on or after debt creation
+            debtMonthlyTotal += debt.minimumPayment;
+        }
+        switch (debt.paymentFrequency) {
+            case "weekly": checkDate = addWeeks(checkDate, 1); break;
+            case "bi-weekly": checkDate = addWeeks(checkDate, 2); break;
+            // For monthly and annually, we only expect one payment per month (or less)
+            // so we break after the first valid one.
+            case "monthly": 
+            case "annually":
+            case "other":
+            default: 
+                checkDate = addMonths(checkDate, 1); // Effectively break by moving out of current month
+                break; 
         }
       }
       currentDebtPayments += debtMonthlyTotal;
@@ -331,6 +348,7 @@ export function RecurringManager() {
       id: `rec-${Date.now()}`,
       userId: "1", 
       createdAt: new Date(),
+      categoryId: newItemData.categoryId || null,
     };
     setRecurringItems((prevItems) => [...prevItems, newItem]);
     toast({

@@ -79,6 +79,24 @@ export type RecurringItemType = typeof recurringItemTypes[number];
 export const recurringFrequencies = ['daily', 'weekly', 'bi-weekly', 'monthly', 'semi-monthly', 'quarterly', 'yearly'] as const;
 export type RecurringFrequency = typeof recurringFrequencies[number];
 
+export const predefinedRecurringCategories = [
+  { value: 'housing', label: 'Housing (Rent/Mortgage)' },
+  { value: 'utilities', label: 'Utilities (Energy, Water, Internet, Phone)' },
+  { value: 'transportation', label: 'Transportation (Car, Gas, Public Transit)' },
+  { value: 'insurance', label: 'Insurance (Health, Auto, Life)' },
+  { value: 'food-groceries', label: 'Groceries' }, // Note: Typically transactional, but some fixed like meal kits
+  { value: 'health-wellness', label: 'Health & Wellness (Gym, Meds)' },
+  { value: 'childcare-education', label: 'Childcare & Education' },
+  { value: 'subscriptions-media', label: 'Subscriptions & Media' },
+  { value: 'software-productivity', label: 'Software & Productivity Tools' },
+  { value: 'personal-care', label: 'Personal Care Subscriptions' },
+  { value: 'loan-payments', label: 'Loan Payments (Non-debt plan)' }, // For fixed loans not in debt strategy
+  { value: 'savings-investments', label: 'Savings & Investments (Fixed Transfer)' },
+  { value: 'other-fixed', label: 'Other Fixed Expense' },
+] as const;
+export type PredefinedRecurringCategoryValue = typeof predefinedRecurringCategories[number]['value'];
+
+
 export interface RecurringItem {
   id: string;
   name: string;
@@ -93,6 +111,7 @@ export interface RecurringItem {
   notes?: string;
   userId: string;
   createdAt: Date;
+  categoryId?: PredefinedRecurringCategoryValue | null; // Category for subscriptions/fixed-expenses
 }
 
 // Unified type for Recurring List
@@ -112,4 +131,5 @@ export interface UnifiedRecurringListItem {
   semiMonthlySecondPayDate?: Date | null; // From RecurringItem, if applicable
   notes?: string;
   source: 'recurring' | 'debt'; // Origin of the item
+  categoryId?: PredefinedRecurringCategoryValue | null; // From RecurringItem
 }

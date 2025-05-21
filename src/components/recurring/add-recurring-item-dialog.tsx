@@ -34,8 +34,8 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
-import type { RecurringItem, RecurringItemType, RecurringFrequency } from "@/types";
-import { recurringItemTypes, recurringFrequencies } from "@/types";
+import type { RecurringItem, RecurringItemType, RecurringFrequency, PredefinedRecurringCategoryValue } from "@/types";
+import { recurringItemTypes, recurringFrequencies, predefinedRecurringCategories } from "@/types";
 import { useState, type ReactNode, useEffect } from "react";
 import { Loader2, CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -49,23 +49,22 @@ const formSchemaBase = z.object({
     z.number({ invalid_type_error: "Amount must be a number." }).positive({ message: "Amount must be positive." })
   ),
   frequency: z.enum(recurringFrequencies, { required_error: "Please select a frequency." }),
-  startDate: z.date().nullable().optional(), // "Next Pay Date" or "Next Due Date"
-  lastRenewalDate: z.date().nullable().optional(), // For subscriptions
+  startDate: z.date().nullable().optional(),
+  lastRenewalDate: z.date().nullable().optional(),
   semiMonthlyFirstPayDate: z.date().nullable().optional(),
   semiMonthlySecondPayDate: z.date().nullable().optional(),
   endDate: z.date().nullable().optional(),
   notes: z.string().max(200, "Notes cannot exceed 200 characters.").optional(),
+  categoryId: z.string().nullable().optional() as z.ZodType<PredefinedRecurringCategoryValue | null | undefined>,
 });
 
 const refinedFormSchema = formSchemaBase.superRefine((data, ctx) => {
   const today = startOfDay(new Date());
 
-  // End date validation (only if type is not income)
+  // End date validation
   if (data.type !== 'income' && data.endDate) {
     let baseDateForEndDateValidation: Date | null = null;
     if (data.type === 'subscription' && data.lastRenewalDate) {
-      // For subscriptions, end date should be after last renewal date.
-      // A more complex validation would ensure it's after the *next calculated* due date.
       baseDateForEndDateValidation = data.lastRenewalDate;
     } else if (data.frequency === 'semi-monthly' && data.semiMonthlySecondPayDate) {
       baseDateForEndDateValidation = data.semiMonthlySecondPayDate;
@@ -74,29 +73,17 @@ const refinedFormSchema = formSchemaBase.superRefine((data, ctx) => {
     } else if (data.startDate) {
       baseDateForEndDateValidation = data.startDate;
     }
-
     if (baseDateForEndDateValidation && data.endDate < baseDateForEndDateValidation) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "End date cannot be before the relevant start/renewal/pay date.",
-        path: ["endDate"],
-      });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "End date cannot be before the relevant start/renewal/pay date.", path: ["endDate"] });
     }
   }
 
-  // Conditional requirements based on type and frequency
+  // Date field requirements based on type and frequency
   if (data.type === 'subscription') {
     if (!data.lastRenewalDate) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Last renewal date is required for subscriptions.",
-        path: ["lastRenewalDate"],
-      });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Last renewal date is required for subscriptions.", path: ["lastRenewalDate"] });
     }
-     // For subscriptions, semi-monthly direct date inputs are not typical.
-     // If semi-monthly frequency is somehow chosen for subscription, this might need adjustment
-     // or semi-monthly should be disabled for subscriptions. For now, assume not chosen.
-  } else if (data.frequency === 'semi-monthly') { // Not a subscription, but semi-monthly
+  } else if (data.frequency === 'semi-monthly') {
     if (!data.semiMonthlyFirstPayDate) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "First upcoming pay date is required.", path: ["semiMonthlyFirstPayDate"] });
     }
@@ -112,6 +99,11 @@ const refinedFormSchema = formSchemaBase.superRefine((data, ctx) => {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: ["startDate"] });
     }
   }
+
+  // Category ID requirement
+  if ((data.type === 'subscription' || data.type === 'fixed-expense') && !data.categoryId) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Category is required for subscriptions and fixed expenses.", path: ["categoryId"] });
+  }
 });
 
 
@@ -126,8 +118,8 @@ interface AddRecurringItemDialogProps {
 
 export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecurringItemAdded }: AddRecurringItemDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false); // For "Next Pay/Due Date"
-  const [isLastRenewalDatePickerOpen, setIsLastRenewalDatePickerOpen] = useState(false); // For "Last Renewal Date"
+  const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false);
+  const [isLastRenewalDatePickerOpen, setIsLastRenewalDatePickerOpen] = useState(false);
   const [isSemiMonthlyFirstDatePickerOpen, setIsSemiMonthlyFirstDatePickerOpen] = useState(false);
   const [isSemiMonthlySecondDatePickerOpen, setIsSemiMonthlySecondDatePickerOpen] = useState(false);
   const [isEndDatePickerOpen, setIsEndDatePickerOpen] = useState(false);
@@ -135,16 +127,10 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
   const form = useForm<AddRecurringItemFormValues>({
     resolver: zodResolver(refinedFormSchema),
     defaultValues: {
-      name: "",
-      type: undefined,
-      amount: undefined,
-      frequency: undefined,
-      startDate: startOfDay(new Date()),
-      lastRenewalDate: null,
-      semiMonthlyFirstPayDate: null,
-      semiMonthlySecondPayDate: null,
-      endDate: null,
-      notes: "",
+      name: "", type: undefined, amount: undefined, frequency: undefined,
+      startDate: startOfDay(new Date()), lastRenewalDate: null,
+      semiMonthlyFirstPayDate: null, semiMonthlySecondPayDate: null,
+      endDate: null, notes: "", categoryId: null,
     },
   });
 
@@ -156,7 +142,7 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
       name: "", type: undefined, amount: undefined, frequency: undefined,
       startDate: startOfDay(new Date()), lastRenewalDate: null,
       semiMonthlyFirstPayDate: null, semiMonthlySecondPayDate: null,
-      endDate: null, notes: "",
+      endDate: null, notes: "", categoryId: null,
     });
     setIsStartDatePickerOpen(false);
     setIsLastRenewalDatePickerOpen(false);
@@ -165,7 +151,6 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
     setIsEndDatePickerOpen(false);
   }
 
-  // Effect to manage conditional field visibility and default values
   useEffect(() => {
     if (selectedType === 'subscription') {
       form.setValue('startDate', null);
@@ -177,16 +162,21 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
       form.setValue('lastRenewalDate', null);
       if (!form.getValues('semiMonthlyFirstPayDate')) form.setValue('semiMonthlyFirstPayDate', startOfDay(new Date()));
       if (!form.getValues('semiMonthlySecondPayDate')) form.setValue('semiMonthlySecondPayDate', startOfDay(new Date(new Date().setDate(new Date().getDate() + 15))));
-    } else { // Other types/frequencies
+      form.setValue('categoryId', null); // Categories not typically for semi-monthly income
+    } else { // Other types/frequencies (e.g., income (not semi-monthly), fixed-expense (not semi-monthly))
       form.setValue('lastRenewalDate', null);
       form.setValue('semiMonthlyFirstPayDate', null);
       form.setValue('semiMonthlySecondPayDate', null);
       if (!form.getValues('startDate')) form.setValue('startDate', startOfDay(new Date()));
+       if (selectedType === 'income') { // Reset category if type becomes income
+         form.setValue('categoryId', null);
+       }
     }
 
     if (selectedType === 'income') {
-      form.setValue('endDate', null); // Clear and effectively hide endDate for income
+      form.setValue('endDate', null);
       setIsEndDatePickerOpen(false);
+      form.setValue('categoryId', null); // Also ensure category is null for income
     }
   }, [selectedType, selectedFrequency, form]);
 
@@ -202,6 +192,7 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
         frequency: values.frequency,
         endDate: values.type === 'income' ? undefined : (values.endDate || undefined),
         notes: values.notes || undefined,
+        categoryId: (values.type === 'subscription' || values.type === 'fixed-expense') ? values.categoryId : null,
     };
 
     if (values.type === 'subscription') {
@@ -227,10 +218,14 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
     onOpenChange(false);
   }
   
-  const getStartDateLabel = () => {
+  const getPrimaryDateLabel = () => {
     if (selectedType === 'income') return "Next Pay Date *";
-    return "Next Due Date *";
+    if (selectedType === 'fixed-expense') return "Next Due Date *";
+    return "Date Field"; // Should not be visible for subscriptions
   };
+
+  const showPrimaryDateField = selectedType !== 'subscription' && selectedFrequency !== 'semi-monthly';
+  const showCategoryField = selectedType === 'subscription' || selectedType === 'fixed-expense';
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
@@ -323,6 +318,33 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
               )}
             />
 
+            {showCategoryField && (
+                 <FormField
+                    control={form.control}
+                    name="categoryId"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Category *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || undefined}>
+                            <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a category" />
+                            </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                            {predefinedRecurringCategories.map(category => (
+                                <SelectItem key={category.value} value={category.value}>
+                                {category.label}
+                                </SelectItem>
+                            ))}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            )}
+
             {selectedType === 'subscription' && (
               <FormField
                 control={form.control}
@@ -336,6 +358,7 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                           <Button
                             variant={"outline"}
                             className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                            onClick={() => setIsLastRenewalDatePickerOpen(true)}
                           >
                             {field.value ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
@@ -357,19 +380,20 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
               />
             )}
 
-            {selectedType !== 'subscription' && selectedFrequency !== 'semi-monthly' && (
+            {showPrimaryDateField && (
               <FormField
                 control={form.control}
                 name="startDate"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>{getStartDateLabel()}</FormLabel>
+                    <FormLabel>{getPrimaryDateLabel()}</FormLabel>
                     <Popover open={isStartDatePickerOpen} onOpenChange={setIsStartDatePickerOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
                             variant={"outline"}
                             className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                            onClick={() => setIsStartDatePickerOpen(true)}
                           >
                             {field.value ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
@@ -405,6 +429,7 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                             <Button
                               variant={"outline"}
                               className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                              onClick={() => setIsSemiMonthlyFirstDatePickerOpen(true)}
                             >
                               {field.value ? format(new Date(field.value), "PPP") : <span>Pick first pay date</span>}
                               <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
@@ -436,6 +461,7 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                             <Button
                               variant={"outline"}
                               className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                              onClick={() => setIsSemiMonthlySecondDatePickerOpen(true)}
                             >
                               {field.value ? format(new Date(field.value), "PPP") : <span>Pick second pay date</span>}
                               <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
@@ -470,6 +496,7 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                           <Button
                             variant={"outline"}
                             className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                            onClick={() => setIsEndDatePickerOpen(true)}
                           >
                             {field.value ? format(new Date(field.value), "PPP") : <span>Pick an end date</span>}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
