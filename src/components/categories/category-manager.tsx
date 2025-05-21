@@ -1,7 +1,7 @@
 "use client";
 
 import type { Category } from "@/types";
-import { useState, useEffect }_ from "react";
+import { useState, useEffect } from "react";
 import { AddCategoryForm } from "./add-category-form";
 import { CategoryList } from "./category-list";
 import { AiCategorySuggester } from "./ai-category-suggester";
