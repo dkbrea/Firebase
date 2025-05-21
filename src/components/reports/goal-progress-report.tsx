@@ -81,7 +81,7 @@ export function GoalProgressReport() {
     <Card className="shadow-lg">
       <CardHeader>
         <CardTitle className="text-xl font-semibold flex items-center">
-            <Icons.Flag className="mr-2 h-5 w-5 text-primary"/>
+            <Icons.Goals className="mr-2 h-5 w-5 text-primary"/>
             Goal Progress Summary
         </CardTitle>
         <CardDescription>Overview of your financial goals and their progress.</CardDescription>
