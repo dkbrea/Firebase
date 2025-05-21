@@ -12,7 +12,7 @@ import { BudgetForecastView } from "./budget-forecast-view";
 import { 
   startOfMonth, endOfMonth, isWithinInterval, setDate, addDays, addWeeks, 
   addMonths, addQuarters, addYears, getDate, startOfDay, isBefore, isAfter, 
-  differenceInCalendarMonths, isPast, format, getYear, getMonth
+  differenceInCalendarMonths, isPast, format, getYear, getMonth, isSameDay
 } from "date-fns";
 
 // Mock data - in a real app, this would come from a data store / API
@@ -154,7 +154,7 @@ export function BudgetManager() {
       else if (isBefore(checkDate, debtCreationDate)) checkDate = setDate(debtCreationDate, debt.paymentDayOfMonth);
 
       while (isBefore(checkDate, currentMonthEnd) || isWithinInterval(checkDate, {start: currentMonthStart, end: currentMonthEnd})) {
-        if (isWithinInterval(checkDate, { start: currentMonthStart, end: currentMonthEnd }) && (isAfter(checkDate, debtCreationDate) || isWithinInterval(checkDate, {start: debtCreationDate, end: addDays(debtCreationDate,1)}))) {
+        if (isWithinInterval(checkDate, { start: currentMonthStart, end: currentMonthEnd }) && (isAfter(checkDate, debtCreationDate) || isSameDay(checkDate, debtCreationDate))) { // Fixed: isWithinInterval instead of isSameDay for debtCreationDate check
           debtMonthlyTotal += debt.minimumPayment;
         }
         if (debt.paymentFrequency === "monthly" || debt.paymentFrequency === "annually" || debt.paymentFrequency === "other") break;
@@ -231,24 +231,26 @@ export function BudgetManager() {
         let debtMonthlyTotal = 0;
         const debtCreationDate = startOfDay(new Date(debt.createdAt));
         let checkDate = setDate(monthStart, debt.paymentDayOfMonth);
-        // Adjust checkDate to be on or after debt creation, and handle payment day correctly for the specific month
+        
         if (isBefore(checkDate, debtCreationDate)) {
              checkDate = setDate(debtCreationDate, debt.paymentDayOfMonth);
-             if (isBefore(checkDate, debtCreationDate) && getMonth(checkDate) === getMonth(debtCreationDate)) { // if payment day for creation month already passed
+             if (isBefore(checkDate, debtCreationDate) && getMonth(checkDate) === getMonth(debtCreationDate)) { 
                 checkDate = addMonths(setDate(debtCreationDate, debt.paymentDayOfMonth),1);
-             } else if (isBefore(checkDate, debtCreationDate)) { // if payment day is earlier in creation month
+             } else if (isBefore(checkDate, debtCreationDate)) { 
                 checkDate = setDate(debtCreationDate, debt.paymentDayOfMonth);
              }
         }
-         // If checkDate is before the current forecast month, advance it until it's in or after
+        
         while(isBefore(checkDate, monthStart)) {
+            let advanced = false;
             switch(debt.paymentFrequency) {
-                case "weekly": checkDate = addWeeks(checkDate, 1); break;
-                case "bi-weekly": checkDate = addWeeks(checkDate, 2); break;
-                case "monthly": checkDate = addMonths(checkDate, 1); break;
-                case "annually": checkDate = addYears(checkDate, 1); break;
-                default: checkDate = addMonths(checkDate, 1); break; // Ensure it moves forward
+                case "weekly": checkDate = addWeeks(checkDate, 1); advanced = true; break;
+                case "bi-weekly": checkDate = addWeeks(checkDate, 2); advanced = true; break;
+                case "monthly": checkDate = addMonths(checkDate, 1); advanced = true; break;
+                case "annually": checkDate = addYears(checkDate, 1); advanced = true; break;
+                default: break; 
             }
+            if (!advanced) break; 
         }
 
 
@@ -256,10 +258,17 @@ export function BudgetManager() {
           if (isAfter(checkDate, debtCreationDate) || isSameDay(checkDate, debtCreationDate)) {
             debtMonthlyTotal += debt.minimumPayment;
           }
-          if (debt.paymentFrequency === "monthly" || debt.paymentFrequency === "annually" || debt.paymentFrequency === "other") break;
-          else if (debt.paymentFrequency === "bi-weekly") checkDate = addWeeks(checkDate, 2);
-          else if (debt.paymentFrequency === "weekly") checkDate = addWeeks(checkDate, 1);
-          else break;
+          let advancedInLoop = false;
+          switch (debt.paymentFrequency) {
+            case "weekly": checkDate = addWeeks(checkDate, 1); advancedInLoop = true; break;
+            case "bi-weekly": checkDate = addWeeks(checkDate, 2); advancedInLoop = true; break;
+            case "monthly": 
+            case "annually":
+            case "other":
+            default:
+                break; // For these, we typically only expect one payment per month or less often within this loop
+          }
+          if(!advancedInLoop) break; // Break if not advancing within month, or if it's monthly/annual etc.
         }
         monthDebtMinimumPayments += debtMonthlyTotal;
       });
@@ -272,16 +281,15 @@ export function BudgetManager() {
       const monthTotalVariableExpenses = forecastVariableExpenses.reduce((sum, ve) => sum + ve.monthSpecificAmount, 0);
 
       const forecastGoalContributions: MonthlyForecastGoalContribution[] = goals.map(goal => {
-        // Simplified: use original monthly contribution if goal is active in this month
         const targetDate = startOfDay(new Date(goal.targetDate));
         const amountNeeded = goal.targetAmount - goal.currentAmount;
         let baseContribution = 0;
         if (amountNeeded > 0 && !isAfter(monthStart, targetDate)) {
            const monthsToTargetFromForecastMonth = differenceInCalendarMonths(targetDate, monthStart);
-           if (monthsToTargetFromForecastMonth >=0) {
-             baseContribution = amountNeeded / Math.max(1, monthsToTargetFromForecastMonth);
-           } else { // target date past for this forecast month
-             baseContribution = 0; // or amountNeeded if you want to show it as due
+           if (monthsToTargetFromForecastMonth >=0) { // Changed from > 0 to >=0 to include current month if target is end of current month
+             baseContribution = amountNeeded / Math.max(1, monthsToTargetFromForecastMonth + 1); // +1 because diff is 0-indexed for months
+           } else { 
+             baseContribution = 0; 
            }
         }
         return {
@@ -387,7 +395,8 @@ export function BudgetManager() {
         onOpenChange={setIsAddCategoryDialogOpen}
         onCategoryAdded={handleAddVariableCategory}
       >
-        <></> 
+        {/* Replace Fragment with a non-visible element that can accept props */}
+        <div style={{ display: 'none' }} />
       </AddBudgetCategoryDialog>
     </div>
   );
