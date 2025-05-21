@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Transaction, Category, Account } from "@/types";
+import type { Transaction, Category, Account, RecurringItem, DebtAccount, FinancialGoalWithContribution } from "@/types";
 import { useState, useEffect } from "react";
 import { TransactionTable } from "./transaction-table";
 import { AddEditTransactionDialog } from "./add-edit-transaction-dialog";
@@ -30,11 +30,26 @@ const mockAssetAccounts: Account[] = [
 ];
 
 const initialMockTransactions: Transaction[] = [
-    { id: "tx1", date: new Date(2024, 6, 15), description: "Trader Joe's Haul", amount: -75.20, type: "expense", categoryId: "cat1", accountId: "acc1", userId: "1", source: "Manual Entry", tags: ["food", "weekly shop"]},
-    { id: "tx2", date: new Date(2024, 6, 14), description: "Dinner at The Italian Place", amount: -45.50, type: "expense", categoryId: "cat2", accountId: "acc1", userId: "1", source: "Manual Entry", tags: ["restaurant"]},
-    { id: "tx3", date: new Date(2024, 6, 12), description: "Monthly Rent", amount: -1200.00, type: "expense", categoryId: "cat10", accountId: "acc1", userId: "1", source: "Manual Entry", tags: []},
-    { id: "tx4", date: new Date(2024, 6, 10), description: "Spotify Subscription", amount: -10.99, type: "expense", categoryId: "cat5", accountId: "acc1", userId: "1", source: "Manual Entry", tags: ["music", "subscription"]},
-    { id: "tx5", date: new Date(2024, 6, 5), description: "Paycheck", amount: 2200.00, type: "income", categoryId: "cat8", accountId: "acc1", userId: "1", source: "Manual Entry", tags: []},
+    { id: "tx1", date: new Date(2024, 6, 15), description: "Trader Joe's Haul", amount: -75.20, type: "expense", detailedType: "variable-expense", categoryId: "cat1", accountId: "acc1", userId: "1", source: "Manual Entry", tags: ["food", "weekly shop"]},
+    { id: "tx2", date: new Date(2024, 6, 14), description: "Dinner at The Italian Place", amount: -45.50, type: "expense", detailedType: "variable-expense", categoryId: "cat2", accountId: "acc1", userId: "1", source: "Manual Entry", tags: ["restaurant"]},
+    { id: "tx3", date: new Date(2024, 6, 12), description: "Monthly Rent", amount: -1200.00, type: "expense", detailedType: "fixed-expense", sourceId: "rec3", accountId: "acc1", userId: "1", source: "Manual Entry", tags: []},
+    { id: "tx4", date: new Date(2024, 6, 10), description: "Spotify Subscription", amount: -10.99, type: "expense", detailedType: "subscription", sourceId: "rec2", accountId: "acc1", userId: "1", source: "Manual Entry", tags: ["music", "subscription"]},
+    { id: "tx5", date: new Date(2024, 6, 5), description: "Paycheck", amount: 2200.00, type: "income", detailedType: "income", sourceId: "rec1", accountId: "acc1", userId: "1", source: "Manual Entry", tags: []},
+];
+
+// Mock data for dialog dropdowns
+const mockRecurringItems: RecurringItem[] = [
+  { id: "rec1", name: "Main Salary", type: "income", amount: 2200, frequency: "monthly", startDate: new Date(2024, 0, 5), userId: "1", createdAt: new Date() },
+  { id: "rec2", name: "Spotify Subscription", type: "subscription", amount: 10.99, frequency: "monthly", lastRenewalDate: new Date(2024, 6, 10), categoryId: "subscriptions-media", userId: "1", createdAt: new Date() },
+  { id: "rec3", name: "Monthly Rent", type: "fixed-expense", amount: 1200, frequency: "monthly", startDate: new Date(2024, 0, 12), categoryId: "housing", userId: "1", createdAt: new Date() },
+];
+
+const mockDebtAccounts: DebtAccount[] = [
+  { id: "debt1", name: "Visa Gold", type: "credit-card", balance: 5250.75, apr: 18.9, minimumPayment: 150, paymentDayOfMonth: 15, paymentFrequency: "monthly", userId: "1", createdAt: new Date() },
+];
+
+const mockGoals: FinancialGoalWithContribution[] = [
+  { id: "goal1", name: "New Car Down Payment", targetAmount: 5000, currentAmount: 1200, targetDate: new Date(2025, 11, 31), icon: "car", userId: "1", createdAt: new Date(), monthlyContribution: 150, monthsRemaining: 20 },
 ];
 
 
@@ -44,6 +59,10 @@ export function TransactionManager() {
   const [categories, setCategories] = useState<Category[]>(mockCategories);
   const [accounts, setAccounts] = useState<Account[]>(mockAssetAccounts);
   
+  const [recurringItems, setRecurringItems] = useState<RecurringItem[]>(mockRecurringItems);
+  const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>(mockDebtAccounts);
+  const [goals, setGoals] = useState<FinancialGoalWithContribution[]>(mockGoals);
+
   const [isAddEditDialogOpen, setIsAddEditDialogOpen] = useState(false);
   const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
 
@@ -62,21 +81,31 @@ export function TransactionManager() {
   };
 
   const handleSaveTransaction = (
-    data: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt" | "tags"> & { tags?: string[] }, 
+    data: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt">, 
     id?: string
   ) => {
-    const processedData = {
+    const finalType: Transaction['type'] = data.detailedType === 'income' ? 'income' : 'expense';
+    const finalAmount = finalType === 'income' ? Math.abs(data.amount) : -Math.abs(data.amount);
+
+    const processedData: Partial<Transaction> = {
       ...data,
-      amount: data.type === 'income' ? Math.abs(data.amount) : -Math.abs(data.amount),
-      tags: data.tags || [], // Ensure tags is an array
+      type: finalType,
+      amount: finalAmount,
+      tags: data.tags || [],
     };
+
+    // Remove categoryId if it's not a variable expense, as it's implied by the sourceId
+    if (data.detailedType !== 'variable-expense') {
+      processedData.categoryId = null;
+    }
+
 
     if (id) { 
       setTransactions(prev => prev.map(t => t.id === id ? { 
         ...t, 
         ...processedData, 
         updatedAt: new Date() 
-      } : t));
+      } as Transaction : t));
       toast({ title: "Transaction Updated", description: `"${data.description}" has been updated.` });
     } else { 
       const newTransaction: Transaction = {
@@ -86,7 +115,7 @@ export function TransactionManager() {
         source: "Manual Entry",
         createdAt: new Date(),
         updatedAt: new Date(),
-      };
+      } as Transaction;
       setTransactions(prev => [newTransaction, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       toast({ title: "Transaction Added", description: `"${newTransaction.description}" has been added.` });
     }
@@ -112,6 +141,10 @@ export function TransactionManager() {
         t.id === transactionId ? { ...t, categoryId, updatedAt: new Date() } : t
       )
     );
+     const updatedTransaction = transactions.find(t => t.id === transactionId);
+     if (updatedTransaction) {
+        toast({ title: "Category Updated", description: `Category for "${updatedTransaction.description}" updated.`});
+     }
   };
 
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
@@ -167,10 +200,13 @@ export function TransactionManager() {
             onSave={handleSaveTransaction}
             categories={categories}
             accounts={accounts}
+            recurringItems={recurringItems}
+            debtAccounts={debtAccounts}
+            goals={goals}
             transactionToEdit={transactionToEdit}
           >
             <Button onClick={handleOpenAddDialog} variant="default">
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Transaction
+              <PlusCircle className="mr-2 h-4 w-4" /> Record Transaction
             </Button>
           </AddEditTransactionDialog>
         </CardHeader>

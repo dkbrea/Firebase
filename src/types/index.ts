@@ -13,22 +13,28 @@ export interface Category {
   createdAt: Date;
 }
 
-export type TransactionType = 'income' | 'expense';
+export type TransactionType = 'income' | 'expense'; // Overall flow direction
+
+export const transactionDetailedTypes = ['income', 'variable-expense', 'fixed-expense', 'subscription', 'debt-payment', 'goal-contribution'] as const;
+export type TransactionDetailedType = typeof transactionDetailedTypes[number];
+
 
 export interface Transaction {
   id: string;
   date: Date;
   description: string;
   amount: number; // Positive for income, negative for expense (persisted this way)
-  type: TransactionType; // Explicitly 'income' or 'expense'
-  categoryId?: string | null;
+  type: TransactionType; // Main type: 'income' or 'expense', derived from detailedType
+  detailedType?: TransactionDetailedType; // Specific user selection
+  categoryId?: string | null; // For variable-expenses primarily
   accountId: string; // Link to an asset Account
+  sourceId?: string; // ID of the linked RecurringItem, DebtAccount, or FinancialGoal
   userId: string;
   source?: string; // e.g., "Manual Entry"
   notes?: string;
-  tags?: string[]; // Added for tags
-  createdAt?: Date; // Optional: when the record was created
-  updatedAt?: Date; // Optional: when the record was last updated
+  tags?: string[];
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface ExpenseByCategory {
