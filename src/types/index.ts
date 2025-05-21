@@ -1,4 +1,5 @@
 
+
 export interface User {
   id: string;
   email?: string;
@@ -90,4 +91,21 @@ export interface RecurringItem {
   notes?: string;
   userId: string;
   createdAt: Date;
+}
+
+// Unified type for Recurring List
+export type UnifiedListItemType = RecurringItemType | 'debt-payment';
+
+export interface UnifiedRecurringListItem {
+  id: string; // Original ID of the item or debt
+  name: string;
+  itemDisplayType: UnifiedListItemType; // For display (icon, color, type label)
+  amount: number; // Raw amount, always positive
+  frequency: RecurringFrequency | PaymentFrequency; // Union of possible frequencies
+  nextOccurrenceDate: Date;
+  status: 'Ended' | 'Today' | 'Upcoming';
+  isDebt: boolean;
+  endDate?: Date | null;
+  notes?: string;
+  source: 'recurring' | 'debt'; // Origin of the item
 }

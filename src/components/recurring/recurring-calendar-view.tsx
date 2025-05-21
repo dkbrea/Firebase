@@ -1,12 +1,12 @@
 
 "use client";
 
-import type { RecurringItem } from "@/types";
+import type { RecurringItem } from "@/types"; // Keep this as RecurringItem if calendar only shows those, or use UnifiedRecurringListItem if it shows all
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CalendarIcon } from "lucide-react";
 
 interface RecurringCalendarViewProps {
-  items: RecurringItem[];
+  items: RecurringItem[]; // Or UnifiedRecurringListItem[] if debts are also on calendar
 }
 
 export function RecurringCalendarView({ items }: RecurringCalendarViewProps) {
@@ -28,7 +28,7 @@ export function RecurringCalendarView({ items }: RecurringCalendarViewProps) {
           <CalendarIcon className="mx-auto h-12 w-12 mb-4" />
           <p className="text-lg font-semibold">Calendar View Coming Soon!</p>
           <p>This section will display your recurring items in a calendar format.</p>
-          {items.length > 0 && <p className="mt-2 text-sm">You have {items.length} recurring item(s) set up.</p>}
+          {items.length > 0 && <p className="mt-2 text-sm">You have {items.length} recurring item(s) that would appear here.</p>}
         </div>
       </CardContent>
     </Card>
