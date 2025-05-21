@@ -1,6 +1,6 @@
 
 import type { SVGProps } from "react";
-import { Landmark, LayoutDashboard, ListPlus, CreditCard, Users, LogOut, Settings, Wallet, PiggyBank, Library, ShieldCheck, MoreHorizontal, Edit, Trash, DollarSign, HelpCircle, CircleDollarSign, Target, TrendingDown, TrendingUp, ReceiptText, CalendarClock } from 'lucide-react';
+import { Landmark, LayoutDashboard, ListPlus, CreditCard, Users, LogOut, Settings, Wallet, PiggyBank, Library, ShieldCheck, MoreHorizontal, Edit, Trash, DollarSign, HelpCircle, CircleDollarSign, Target, TrendingDown, TrendingUp, ReceiptText, CalendarClock, ClipboardList } from 'lucide-react';
 
 export const Icons = {
   Logo: (props: SVGProps<SVGSVGElement>) => (
@@ -24,8 +24,9 @@ export const Icons = {
   Categories: ListPlus,
   Transactions: CreditCard,
   Accounts: PiggyBank,
-  Debts: Target, // Icon for Debts page
-  Recurring: CalendarClock, // Icon for Recurring page
+  Debts: Target,
+  Recurring: CalendarClock,
+  Budget: ClipboardList, // Added Budget icon
   Auth: Users,
   Logout: LogOut,
   Settings: Settings,
@@ -41,10 +42,10 @@ export const Icons = {
   AccountTypeOther: HelpCircle,
   MoreHorizontal: MoreHorizontal,
   DebtTypeCreditCard: CreditCard,
-  DebtTypeStudentLoan: Library, // Using Library for education context
+  DebtTypeStudentLoan: Library,
   DebtTypePersonalLoan: DollarSign,
-  DebtTypeMortgage: Landmark, // Using Landmark for housing/property
-  DebtTypeAutoLoan: (props: SVGProps<SVGSVGElement>) => ( // Custom Car Icon
+  DebtTypeMortgage: Landmark,
+  DebtTypeAutoLoan: (props: SVGProps<SVGSVGElement>) => (
     <svg
       xmlns="http://www.w3.org/2000/svg"
       width="24"

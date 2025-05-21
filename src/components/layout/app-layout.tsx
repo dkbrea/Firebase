@@ -26,6 +26,7 @@ const navItems: NavItem[] = [
   { href: "/accounts", label: "Accounts", icon: Icons.Accounts },
   { href: "/debts", label: "Debt Plan", icon: Icons.Debts },
   { href: "/recurring", label: "Recurring", icon: Icons.Recurring },
+  { href: "/budget", label: "Budget", icon: Icons.Budget }, // Added Budget navigation item
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
