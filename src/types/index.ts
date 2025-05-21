@@ -1,5 +1,4 @@
 
-
 export interface User {
   id: string;
   email?: string;
@@ -86,7 +85,8 @@ export interface RecurringItem {
   type: RecurringItemType;
   amount: number; // Always positive, type determines inflow/outflow
   frequency: RecurringFrequency;
-  startDate?: Date | null; // Used if frequency is NOT semi-monthly
+  startDate?: Date | null; // Used if frequency is NOT semi-monthly AND type is NOT subscription
+  lastRenewalDate?: Date | null; // Used if type IS subscription
   semiMonthlyFirstPayDate?: Date | null; // Used if frequency IS semi-monthly
   semiMonthlySecondPayDate?: Date | null; // Used if frequency IS semi-monthly
   endDate?: Date | null;
@@ -113,4 +113,3 @@ export interface UnifiedRecurringListItem {
   notes?: string;
   source: 'recurring' | 'debt'; // Origin of the item
 }
-
