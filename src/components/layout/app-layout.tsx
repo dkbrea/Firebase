@@ -11,6 +11,7 @@ import { UserNav } from "./user-nav";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/contexts/auth-context"; // Added import
 
 interface NavItem {
   href: string;
