@@ -2,7 +2,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import Icons from "@/components/icons";
+import { Icons } from "@/components/icons"; // Corrected import
 
 export function IncomeAnalysisReport() {
   return (

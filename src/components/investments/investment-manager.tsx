@@ -8,7 +8,7 @@ import { InvestmentAccountList } from "./investment-account-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import Icons from "@/components/icons";
+import { Icons } from "@/components/icons"; // Corrected import
 import { PlusCircle, TrendingUp, LineChart, Clock, RefreshCw, BarChartBig, Settings2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MarketOverviewCard } from "./market-overview-card";
@@ -99,7 +99,7 @@ export function InvestmentManager() {
       <Card className="shadow-lg">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
             <div>
-                <CardTitle className="text-xl flex items-center gap-2"><BarChartBig className="h-5 w-5 text-primary"/> Investment Accounts</CardTitle>
+                <CardTitle className="text-xl flex items-center gap-2"><Icons.BarChartBig className="h-5 w-5 text-primary"/> Investment Accounts</CardTitle>
                 <CardDescription>Manage your individual investment accounts.</CardDescription>
             </div>
             <AddInvestmentAccountDialog
@@ -120,7 +120,7 @@ export function InvestmentManager() {
                 />
             ) : (
                  <div className="text-center text-muted-foreground py-12 border-2 border-dashed border-border rounded-lg bg-muted/30">
-                    <Clock className="mx-auto h-12 w-12 text-muted-foreground/70 mb-4" />
+                    <Icons.Clock className="mx-auto h-12 w-12 text-muted-foreground/70 mb-4" />
                     <h3 className="text-xl font-semibold text-foreground mb-2">No Investment Accounts Yet</h3>
                     <p className="text-muted-foreground mb-6">Add your brokerage, retirement, or other investment accounts to start tracking your portfolio.</p>
                     <AddInvestmentAccountDialog
@@ -140,7 +140,7 @@ export function InvestmentManager() {
        <Card className="shadow-lg">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
             <div>
-                <CardTitle className="text-xl flex items-center gap-2"><TrendingUp className="h-5 w-5 text-primary"/> Top Holdings</CardTitle>
+                <CardTitle className="text-xl flex items-center gap-2"><Icons.TrendingUp className="h-5 w-5 text-primary"/> Top Holdings</CardTitle>
                 <CardDescription>Overview of your major investment positions.</CardDescription>
             </div>
             {/* Placeholder for Add Holding Button */}
@@ -153,7 +153,7 @@ export function InvestmentManager() {
              <TopHoldingsTable holdings={holdings} onDeleteHolding={handleDeleteHolding} />
            ) : (
              <div className="text-center text-muted-foreground py-12 border-2 border-dashed border-border rounded-lg bg-muted/30">
-                <LineChart className="mx-auto h-12 w-12 text-muted-foreground/70 mb-4" />
+                <Icons.LineChartIcon className="mx-auto h-12 w-12 text-muted-foreground/70 mb-4" />
                 <h3 className="text-xl font-semibold text-foreground mb-2">No Holdings Tracked</h3>
                 <p className="text-muted-foreground mb-6">Add individual stocks, ETFs, or crypto to see your positions here.</p>
              </div>

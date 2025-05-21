@@ -4,7 +4,7 @@
 import type { DebtAccount } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import Icons from "@/components/icons";
+import { Icons } from "@/components/icons"; // Corrected import
 import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,

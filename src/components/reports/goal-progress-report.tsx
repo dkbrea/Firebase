@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import type { FinancialGoalWithContribution } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import Icons from "@/components/icons";
+import { Icons } from "@/components/icons"; // Corrected import
 import { format, differenceInCalendarMonths, isPast, startOfDay } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";

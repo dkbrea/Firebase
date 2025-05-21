@@ -1,5 +1,6 @@
+
 import { AuthForm } from "@/components/auth/auth-form";
-import Icons from "@/components/icons";
+import { Icons } from "@/components/icons"; // Corrected import
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function AuthPage() {

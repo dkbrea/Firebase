@@ -6,7 +6,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 import type { NetWorthDataPoint } from "@/types";
-import Icons from "@/components/icons";
+import { Icons } from "@/components/icons"; // Corrected import
 
 const mockNetWorthData: NetWorthDataPoint[] = [
   { month: "Jan '24", assets: 30000, liabilities: 15000, netWorth: 15000 },

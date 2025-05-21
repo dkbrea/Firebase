@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import Icons from "@/components/icons";
+import { Icons } from "@/components/icons"; // Corrected import
 import { SpendingByCategoryReport } from "@/components/reports/spending-by-category-report";
 import { IncomeAnalysisReport } from "@/components/reports/income-analysis-report";
 import { SpendingTrendsReport } from "@/components/reports/spending-trends-report";

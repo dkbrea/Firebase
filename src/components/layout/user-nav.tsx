@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/auth-context";
-import Icons from "@/components/icons";
+import { Icons } from "@/components/icons"; // Corrected import
 
 export function UserNav() {
   const { user, logout } = useAuth();

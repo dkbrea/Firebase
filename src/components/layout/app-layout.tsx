@@ -4,14 +4,14 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
-import Icons from "@/components/icons";
+import { Icons } from "@/components/icons"; // Corrected import
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { UserNav } from "./user-nav";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { useAuth } from "@/contexts/auth-context"; // Added import
+import { useAuth } from "@/contexts/auth-context";
 
 interface NavItem {
   href: string;
@@ -95,7 +95,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex flex-col min-h-screen overflow-hidden">
          {/* Mobile Header with Floating Hamburger Menu */}
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-            <SheetTrigger asChild>
+             <SheetTrigger asChild>
                 <Button variant="outline" size="icon" className="lg:hidden fixed top-4 left-4 z-40 bg-card/80 backdrop-blur-sm hover:bg-card shadow-md">
                     <Menu className="h-6 w-6" />
                     <span className="sr-only">Toggle navigation menu</span>
