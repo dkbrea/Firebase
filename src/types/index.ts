@@ -26,6 +26,7 @@ export interface Transaction {
   userId: string;
   source?: string; // e.g., "Manual Entry"
   notes?: string;
+  tags?: string[]; // Added for tags
   createdAt?: Date; // Optional: when the record was created
   updatedAt?: Date; // Optional: when the record was last updated
 }
@@ -219,22 +220,22 @@ export interface MonthlyForecastSubscriptionItem {
 export interface MonthlyForecastDebtPaymentItem {
   id: string; 
   name: string;
-  totalAmountInMonth: number; 
+  totalAmountInMonth: number; // This is the minimum payment
   debtType: DebtAccountType;
-  additionalPayment?: number; 
+  additionalPayment?: number; // User-entered additional payment for the forecast month
 }
 
 
 export interface MonthlyForecastVariableExpense {
   id: string; 
   name: string;
-  monthSpecificAmount: number; 
+  monthSpecificAmount: number; // User-editable amount for the forecast month
 }
 
 export interface MonthlyForecastGoalContribution {
   id: string; 
   name: string;
-  monthSpecificContribution: number; 
+  monthSpecificContribution: number; // User-editable amount for the forecast month
 }
 
 export interface MonthlyForecast {

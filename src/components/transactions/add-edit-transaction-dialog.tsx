@@ -15,11 +15,10 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import type { Transaction, Category, Account, TransactionType } from "@/types";
 import { useState, useEffect, type ReactNode, useCallback } from "react";
-import { Loader2, CalendarIcon, Wand2 } from "lucide-react";
+import { Loader2, CalendarIcon, Wand2, TrendingDown, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, startOfDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -37,6 +36,7 @@ const formSchema = z.object({
   categoryId: z.string().nullable().optional(),
   accountId: z.string({ required_error: "Account is required." }),
   notes: z.string().max(200, "Notes must be 200 characters or less.").optional(),
+  tags: z.string().optional(), // Input as comma-separated string
 });
 
 type TransactionFormValues = z.infer<typeof formSchema>;
@@ -69,6 +69,7 @@ export function AddEditTransactionDialog({
       categoryId: null,
       accountId: undefined,
       notes: "",
+      tags: "",
     },
   });
 
@@ -82,23 +83,24 @@ export function AddEditTransactionDialog({
         categoryId: transactionToEdit.categoryId || null,
         accountId: transactionToEdit.accountId,
         notes: transactionToEdit.notes || "",
+        tags: transactionToEdit.tags?.join(", ") || "",
       });
     } else if (!isOpen) {
       form.reset({
         date: startOfDay(new Date()), description: "", type: "expense", amount: undefined,
-        categoryId: null, accountId: undefined, notes: "",
+        categoryId: null, accountId: undefined, notes: "", tags: "",
       });
     }
   }, [transactionToEdit, isOpen, form]);
 
   const handleDescriptionChangeForAISuggestion = useCallback(async (description: string) => {
-    if (description.length > 5 && !form.getValues('categoryId') && !transactionToEdit) { // Only suggest if no category and not editing
+    if (description.length > 5 && !form.getValues('categoryId') && !transactionToEdit) { 
       setIsAISuggesting(true);
       try {
         const result = await categorizeTransactionFlow({ transactionDescription: description });
         if (result && result.suggestedCategory) {
           const matchedCategory = categories.find(c => c.name.toLowerCase() === result.suggestedCategory.toLowerCase());
-          if (matchedCategory && result.confidenceScore > 0.6) { // Confidence threshold
+          if (matchedCategory && result.confidenceScore > 0.6) { 
             form.setValue('categoryId', matchedCategory.id, { shouldValidate: true });
             toast({
               title: "AI Category Suggested",
@@ -108,7 +110,6 @@ export function AddEditTransactionDialog({
           }
         }
       } catch (error) {
-        // Silently fail or log, don't bother user for background suggestion
         console.error("AI suggestion error:", error);
       }
       setIsAISuggesting(false);
@@ -118,61 +119,69 @@ export function AddEditTransactionDialog({
 
   async function onSubmit(values: TransactionFormValues) {
     setIsLoading(true);
-    // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 500));
 
     const transactionData = {
-      ...values,
-      amount: values.type === 'income' ? values.amount : -values.amount, // Apply sign based on type
-      date: startOfDay(values.date), // Ensure date is at start of day
+      date: startOfDay(values.date),
+      description: values.description,
+      type: values.type,
+      amount: values.type === 'income' ? values.amount : -values.amount, 
+      categoryId: values.categoryId === "_UNCATEGORIZED_" ? null : values.categoryId,
+      accountId: values.accountId,
+      notes: values.notes || undefined,
+      tags: values.tags ? values.tags.split(',').map(tag => tag.trim()).filter(tag => tag) : [],
     };
     
     onSave(transactionData, transactionToEdit?.id);
     setIsLoading(false);
-    onOpenChange(false); // Close dialog on success
+    onOpenChange(false); 
   }
+
+  const selectedType = form.watch("type");
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!isLoading) onOpenChange(open); // Prevent closing while loading
+      if (!isLoading) onOpenChange(open); 
     }}>
       {children && <DialogTrigger asChild>{children}</DialogTrigger>}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{transactionToEdit ? "Edit Transaction" : "Add New Transaction"}</DialogTitle>
+          <DialogTitle>{transactionToEdit ? "Edit Transaction" : "Record Transaction"}</DialogTitle>
           <DialogDescription>
             {transactionToEdit ? "Update the details of your transaction." : "Enter the details for your new transaction."}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-2">
-            <FormField
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2 max-h-[75vh] overflow-y-auto pr-2">
+            
+            <div className="grid grid-cols-2 gap-2">
+                <Button
+                    type="button"
+                    variant={selectedType === 'expense' ? 'secondary' : 'outline'}
+                    onClick={() => form.setValue('type', 'expense', { shouldValidate: true })}
+                    className="w-full"
+                >
+                    <TrendingDown className="mr-2 h-4 w-4" /> Expense
+                </Button>
+                <Button
+                    type="button"
+                    variant={selectedType === 'income' ? 'secondary' : 'outline'}
+                    onClick={() => form.setValue('type', 'income', { shouldValidate: true })}
+                    className="w-full"
+                >
+                     <TrendingUp className="mr-2 h-4 w-4" /> Income
+                </Button>
+            </div>
+             <FormField
               control={form.control}
-              name="date"
+              name="amount"
               render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Date *</FormLabel>
-                  <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                        >
-                          {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={(date) => { field.onChange(date); setIsDatePickerOpen(false); }}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+                <FormItem>
+                  <FormLabel>Amount *</FormLabel>
+                  <FormControl>
+                    <Input type="number" step="0.01" placeholder="$0.00" {...field} />
+                  </FormControl>
+                  <FormDescription>Enter a positive value. Type above determines flow.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -198,60 +207,14 @@ export function AddEditTransactionDialog({
                 </FormItem>
               )}
             />
-
-            <FormField
-              control={form.control}
-              name="type"
-              render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel>Type *</FormLabel>
-                  <FormControl>
-                    <RadioGroup
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      className="flex space-x-4"
-                    >
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="expense" />
-                        </FormControl>
-                        <FormLabel className="font-normal">Expense</FormLabel>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="income" />
-                        </FormControl>
-                        <FormLabel className="font-normal">Income</FormLabel>
-                      </FormItem>
-                    </RadioGroup>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
             
-            <FormField
-              control={form.control}
-              name="amount"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Amount ($) *</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.01" placeholder="0.00" {...field} />
-                  </FormControl>
-                  <FormDescription>Enter a positive value. "Type" determines if it's income or expense.</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
             <FormField
               control={form.control}
               name="categoryId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="flex items-center justify-between">
-                    Category
+                    Budget Category
                     <Button 
                       type="button" 
                       variant="ghost" 
@@ -264,14 +227,17 @@ export function AddEditTransactionDialog({
                       Suggest
                     </Button>
                   </FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ""} defaultValue={field.value || ""}>
+                  <Select 
+                    onValueChange={(value) => field.onChange(value === "_UNCATEGORIZED_" ? null : value)} 
+                    value={field.value === null || field.value === undefined ? "_UNCATEGORIZED_" : field.value}
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a category (optional)" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">Uncategorized</SelectItem>
+                      <SelectItem value="_UNCATEGORIZED_">Uncategorized</SelectItem>
                       {categories.map(category => (
                         <SelectItem key={category.id} value={category.id}>
                           {category.name}
@@ -289,7 +255,7 @@ export function AddEditTransactionDialog({
               name="accountId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Account *</FormLabel>
+                  <FormLabel>From Account *</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
@@ -297,13 +263,61 @@ export function AddEditTransactionDialog({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {accounts.filter(acc => acc.type !== 'credit card' || acc.balance >= 0).map(account => ( // Filter out debt-like credit cards
+                      {accounts.filter(acc => acc.type !== 'credit card' || acc.balance >= 0).map(account => (
                         <SelectItem key={account.id} value={account.id}>
                           {account.name} ({account.type})
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+             <FormField
+              control={form.control}
+              name="date"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Date *</FormLabel>
+                  <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant={"outline"}
+                          className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                          onClick={() => setIsDatePickerOpen(true)}
+                        >
+                          {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={(date) => { field.onChange(date); setIsDatePickerOpen(false); }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="tags"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tags (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., work, travel, project-x" {...field} />
+                  </FormControl>
+                  <FormDescription>Comma-separated tags for easy filtering.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

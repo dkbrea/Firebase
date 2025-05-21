@@ -30,11 +30,11 @@ const mockAssetAccounts: Account[] = [
 ];
 
 const initialMockTransactions: Transaction[] = [
-    { id: "tx1", date: new Date(2024, 6, 15), description: "Trader Joe's Haul", amount: -75.20, type: "expense", categoryId: "cat1", accountId: "acc1", userId: "1", source: "Manual Entry"},
-    { id: "tx2", date: new Date(2024, 6, 14), description: "Dinner at The Italian Place", amount: -45.50, type: "expense", categoryId: "cat2", accountId: "acc1", userId: "1", source: "Manual Entry"},
-    { id: "tx3", date: new Date(2024, 6, 12), description: "Monthly Rent", amount: -1200.00, type: "expense", categoryId: "cat10", accountId: "acc1", userId: "1", source: "Manual Entry"},
-    { id: "tx4", date: new Date(2024, 6, 10), description: "Spotify Subscription", amount: -10.99, type: "expense", categoryId: "cat5", accountId: "acc1", userId: "1", source: "Manual Entry"},
-    { id: "tx5", date: new Date(2024, 6, 5), description: "Paycheck", amount: 2200.00, type: "income", categoryId: "cat8", accountId: "acc1", userId: "1", source: "Manual Entry"},
+    { id: "tx1", date: new Date(2024, 6, 15), description: "Trader Joe's Haul", amount: -75.20, type: "expense", categoryId: "cat1", accountId: "acc1", userId: "1", source: "Manual Entry", tags: ["food", "weekly shop"]},
+    { id: "tx2", date: new Date(2024, 6, 14), description: "Dinner at The Italian Place", amount: -45.50, type: "expense", categoryId: "cat2", accountId: "acc1", userId: "1", source: "Manual Entry", tags: ["restaurant"]},
+    { id: "tx3", date: new Date(2024, 6, 12), description: "Monthly Rent", amount: -1200.00, type: "expense", categoryId: "cat10", accountId: "acc1", userId: "1", source: "Manual Entry", tags: []},
+    { id: "tx4", date: new Date(2024, 6, 10), description: "Spotify Subscription", amount: -10.99, type: "expense", categoryId: "cat5", accountId: "acc1", userId: "1", source: "Manual Entry", tags: ["music", "subscription"]},
+    { id: "tx5", date: new Date(2024, 6, 5), description: "Paycheck", amount: 2200.00, type: "income", categoryId: "cat8", accountId: "acc1", userId: "1", source: "Manual Entry", tags: []},
 ];
 
 
@@ -47,10 +47,8 @@ export function TransactionManager() {
   const [isAddEditDialogOpen, setIsAddEditDialogOpen] = useState(false);
   const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
 
-  // In a real app, categories and accounts would be fetched via API
   useEffect(() => {
-    // setCategories(mockCategories); // Already set
-    // setAccounts(mockAssetAccounts); // Already set
+    // Categories and accounts are set from mock data above
   }, []);
 
   const handleOpenAddDialog = () => {
@@ -64,24 +62,28 @@ export function TransactionManager() {
   };
 
   const handleSaveTransaction = (
-    data: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt">, 
+    data: Omit<Transaction, "id" | "userId" | "source" | "createdAt" | "updatedAt" | "tags"> & { tags?: string[] }, 
     id?: string
   ) => {
-    if (id) { // Editing existing transaction
+    const processedData = {
+      ...data,
+      amount: data.type === 'income' ? Math.abs(data.amount) : -Math.abs(data.amount),
+      tags: data.tags || [], // Ensure tags is an array
+    };
+
+    if (id) { 
       setTransactions(prev => prev.map(t => t.id === id ? { 
         ...t, 
-        ...data, 
-        amount: data.type === 'income' ? Math.abs(data.amount) : -Math.abs(data.amount),
+        ...processedData, 
         updatedAt: new Date() 
       } : t));
       toast({ title: "Transaction Updated", description: `"${data.description}" has been updated.` });
-    } else { // Adding new transaction
+    } else { 
       const newTransaction: Transaction = {
-        ...data,
+        ...processedData,
         id: `txn-${Date.now()}`,
-        userId: "1", // Mock user ID
+        userId: "1", 
         source: "Manual Entry",
-        amount: data.type === 'income' ? Math.abs(data.amount) : -Math.abs(data.amount),
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -110,13 +112,10 @@ export function TransactionManager() {
         t.id === transactionId ? { ...t, categoryId, updatedAt: new Date() } : t
       )
     );
-    // Optional: Toast for category update
   };
 
-
-  // Calculate summary values - can be refined with date filters later
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-  const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + Math.abs(t.amount), 0); // sum of absolute values
+  const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + Math.abs(t.amount), 0); 
   const netFlow = totalIncome - totalExpenses;
 
   return (
@@ -177,7 +176,7 @@ export function TransactionManager() {
         </CardHeader>
         <CardContent>
           <TransactionTable
-            transactions={transactions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())} // Sort by date desc by default
+            transactions={transactions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
             categories={categories}
             accounts={accounts}
             onUpdateTransactionCategory={handleUpdateTransactionCategory}
