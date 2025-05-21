@@ -4,37 +4,42 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { TrendingUp, TrendingDown, DollarSign, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, AlertTriangle, CheckCircle2, Flag } from "lucide-react";
 
 interface BudgetSummaryProps {
   totalIncome: number;
-  totalFixedOutflows: number; // Sum of fixed expenses, subscriptions, debt payments
+  totalFixedOutflows: number; // Sum of fixed expenses, subscriptions, debt payments, AND GOAL CONTRIBUTIONS
   totalBudgetedVariable: number;
+  totalGoalContributions: number; // Explicitly passed for display
 }
 
-export function BudgetSummary({ totalIncome, totalFixedOutflows, totalBudgetedVariable }: BudgetSummaryProps) {
+export function BudgetSummary({ totalIncome, totalFixedOutflows, totalBudgetedVariable, totalGoalContributions }: BudgetSummaryProps) {
+  // Remaining for budget already accounts for goals because totalFixedOutflows includes them
   const remainingForBudget = totalIncome - totalFixedOutflows - totalBudgetedVariable;
-  const availableForVariable = totalIncome - totalFixedOutflows;
+  
+  // Available for variable is income MINUS (fixed expenses + subscriptions + debt payments + GOAL CONTRIBUTIONS)
+  const availableForVariable = totalIncome - totalFixedOutflows; 
   
   let progressPercentage = 0;
   if (availableForVariable > 0) {
-    // Calculate how much of the 'availableForVariable' has been budgeted
     progressPercentage = Math.min( (totalBudgetedVariable / availableForVariable) * 100, 100);
   } else if (availableForVariable <=0 && totalBudgetedVariable > 0) { 
-      // If no money for variable expenses but some are budgeted (i.e. fixed outflows >= income)
-      progressPercentage = 100; // Show bar as full red, indicating overbudget from the start
+      progressPercentage = 100; 
   }
 
+  // For display purposes, calculate fixed outflows *without* goal contributions
+  const fixedOutflowsWithoutGoals = totalFixedOutflows - totalGoalContributions;
 
   const summaryItems = [
     { title: "Monthly Income", amount: totalIncome, icon: <TrendingUp className="text-green-500" />, color: "text-green-600" },
-    { title: "Fixed Outflows", amount: totalFixedOutflows, icon: <TrendingDown className="text-red-500" />, color: "text-red-600" },
+    { title: "Fixed Outflows (Bills, Debts)", amount: fixedOutflowsWithoutGoals, icon: <TrendingDown className="text-red-500" />, color: "text-red-600" },
+    { title: "Goal Contributions", amount: totalGoalContributions, icon: <Flag className="text-sky-500" />, color: "text-sky-600" }, // New item for goals
     { title: "Budgeted Variable", amount: totalBudgetedVariable, icon: <DollarSign className="text-blue-500" />, color: "text-blue-600" },
   ];
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {summaryItems.map(item => (
           <Card key={item.title} className="shadow-md">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -61,15 +66,13 @@ export function BudgetSummary({ totalIncome, totalFixedOutflows, totalBudgetedVa
                 className={cn(
                   "font-bold",
                   remainingForBudget === 0 && "text-green-600",
-                  remainingForBudget > 0 && "text-orange-500", // Use orange for money still to budget
+                  remainingForBudget > 0 && "text-orange-500",
                   remainingForBudget < 0 && "text-destructive"
                 )}
               >
                 ${remainingForBudget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
-            {/* Progress bar visualizes how much of the (Income - Fixed Outflows) is covered by Variable Budget */}
-            {/* Only show progress bar if there's actually money available for variable expenses */}
             {availableForVariable > 0 && (
                 <Progress 
                     value={progressPercentage} 
@@ -81,7 +84,7 @@ export function BudgetSummary({ totalIncome, totalFixedOutflows, totalBudgetedVa
                     )} 
                 />
             )}
-             {availableForVariable <= 0 && totalIncome > 0 && ( // Show if fixed outflows already exceed income
+             {availableForVariable <= 0 && totalIncome > 0 && ( 
                 <Progress 
                     value={100} 
                     className="h-4 !bg-destructive/80 [&>div]:!bg-destructive"
@@ -104,7 +107,7 @@ export function BudgetSummary({ totalIncome, totalFixedOutflows, totalBudgetedVa
           {remainingForBudget < 0 && (
             <div className="flex items-center text-destructive">
               <AlertTriangle className="mr-2 h-5 w-5" />
-              <p className="font-medium">You've budgeted more than your income. Adjust your variable expenses.</p>
+              <p className="font-medium">You've budgeted more than your income. Adjust your variable expenses or goal contributions.</p>
             </div>
           )}
         </CardContent>
