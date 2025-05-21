@@ -1,18 +1,19 @@
-# **App Name**: Pocket Ledger
+# **App Name**: FinView
 
 ## Core Features:
 
-- Expense Charting: Visualize the distribution of expenses over user defined categories.
-- Category Definition: Allow user to manually define expense categories
-- AI Expense Suggestion: AI-powered tool to suggest the right expense categories to the user.
-- Bank Transaction Sync: Allow user to connect bank account via Plaid integration to retrieve transaction details. Note that this should not store transaction details.
-- User Authentication: Securely manage user authentication to protect financial data.
+- Dashboard View: Display a dashboard with key financial metrics such as total balance, spending overview, and savings plans.
+- Interactive Charts: Show income and expenses over time with a bar chart. Overlaid expenses and income enable quick comparisons.
+- Transaction History: Present a detailed list of recent transactions with dates, amounts, and status indicators.
+- Smart Categorization: Automatically categorize transactions (e.g., food, shopping) using an AI tool.
+- Predictive Analysis: Predict future spending and suggest savings plans based on past financial data, acting as an AI financial advisor.
 
 ## Style Guidelines:
 
-- Primary color: Deep violet (#7957D6) to convey sophistication and modernity. Violet is a non-traditional but related alternative to colors more commonly associated with finances, like green or blue. It's also less visually similar to common colors like red (for debt) or black (for accounting).
-- Background color: Light violet (#F2EEFD) to create a calming and uncluttered backdrop that lets the primary and accent colors pop.
-- Accent color: Indigo (#4B0082) will direct user attention towards key elements and interactive components. This hue resides to the left of violet on the color wheel and has similar connotations of depth and regality.
-- Clean and modern sans-serif font for readability and a tech-forward feel.
-- Minimalist line icons to represent expense categories and actions.
-- Simple, intuitive layout with a focus on data visualization. Important actions should be readily accessible.
+- Primary color: Calm and trustworthy blue (#6699CC) to promote a sense of financial stability.
+- Background color: Light, desaturated blue (#F0F8FF) to provide a clean and unobtrusive backdrop.
+- Accent color: Muted teal (#70A494) to highlight key interactive elements and data points.
+- Clean, sans-serif font for all text elements.
+- Consistent use of line icons to represent different categories and actions.
+- Card-based layout with subtle shadows to create depth and organization.
+- Smooth transitions and loading animations to improve user experience.

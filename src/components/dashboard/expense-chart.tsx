@@ -1,7 +1,8 @@
 "use client";
 
-import { TrendingUp } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { TrendingUp, CalendarDays } from "lucide-react";
+// Added Area to imports, kept Bar and BarChart in case they are used elsewhere or for future refactoring.
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import {
   Card,
   CardContent,
@@ -17,20 +18,20 @@ import {
 import type { ExpenseByCategory } from "@/types";
 import { useEffect, useState } from "react";
 
-const mockExpenseData: ExpenseByCategory[] = [
-  { category: "Groceries", amount: 350.75 },
-  { category: "Dining Out", amount: 220.50 },
-  { category: "Utilities", amount: 180.00 },
-  { category: "Transport", amount: 120.25 },
-  { category: "Entertainment", amount: 95.00 },
-  { category: "Shopping", amount: 150.60 },
-  { category: "Health", amount: 75.00 },
+const mockChartData = [
+  { date: "2023-10-01", amount: 1500 },
+  { date: "2023-10-05", amount: 1700 },
+  { date: "2023-10-10", amount: 1900 },
+  { date: "2023-10-15", amount: 2100 },
+  { date: "2023-10-20", amount: 2000 },
+  { date: "2023-10-25", amount: 2300 },
+  { date: "2023-10-30", amount: 2500 },
 ];
 
 const chartConfig = {
   amount: {
     label: "Amount ($)",
-    color: "hsl(var(--primary))",
+    color: "hsl(var(--primary))", // This color might be for the legend or tooltip, not directly the area stroke if using gradient
   },
 };
 
@@ -42,37 +43,53 @@ export function ExpenseChart() {
   }, []);
 
   if (!isClient) {
-    // Render placeholder or null on the server to avoid hydration mismatch
-    // as Recharts/ChartContainer might behave differently
-    return <Card><CardHeader><CardTitle>Expense Breakdown</CardTitle><CardDescription>Monthly spending by category</CardDescription></CardHeader><CardContent><div className="h-[300px] w-full flex items-center justify-center text-muted-foreground">Loading chart...</div></CardContent></Card>;
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Expense Breakdown</CardTitle>
+          <CardDescription>Monthly spending by category</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[300px] w-full flex items-center justify-center text-muted-foreground">
+            Loading chart...
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
   
   return (
-    <Card className="shadow-lg">
+    <Card className="col-span-2 shadow-lg"> 
       <CardHeader>
-        <CardTitle>Expense Breakdown</CardTitle>
-        <CardDescription>Monthly spending by category</CardDescription>
+        <CardTitle>Statistics Overview</CardTitle>
+        <CardDescription>Income and expenses over time</CardDescription>
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={mockExpenseData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+            <AreaChart data={mockChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false}/>
-              <XAxis dataKey="category" tickLine={false} axisLine={false} tickMargin={8} />
-              <YAxis tickLine={false} axisLine={false} tickMargin={8} />
+              <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
+              <YAxis />
               <Tooltip
-                cursor={{ fill: "hsl(var(--muted))" }}
-                content={<ChartTooltipContent />}
+                content={<ChartTooltipContent indicator="line" />}
               />
               <Legend />
-              <Bar dataKey="amount" fill="var(--color-amount)" radius={4} />
-            </BarChart>
+              {/* Changed Bar to Area and configured to use the gradient */}
+              <Area type="monotone" dataKey="amount" stroke="#8884d8" fillOpacity={1} fill="url(#colorAmount)" />
+            </AreaChart> {/* Corrected closing tag */}
           </ResponsiveContainer>
         </ChartContainer>
       </CardContent>
       <CardFooter className="flex-col items-start gap-2 text-sm">
         <div className="flex gap-2 font-medium leading-none">
-          Total expenses this month: ${mockExpenseData.reduce((sum, item) => sum + item.amount, 0).toFixed(2)}
+          Total amount shown: ${mockChartData.reduce((sum, item) => sum + item.amount, 0).toFixed(2)}
           <TrendingUp className="h-4 w-4" />
         </div>
         <div className="leading-none text-muted-foreground">
