@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { UnifiedRecurringListItem, RecurringItem } from "@/types"; // Updated import
+import type { UnifiedRecurringListItem, RecurringItem, RecurringFrequency } from "@/types"; // Updated import
 import {
   Table,
   TableBody,
@@ -44,8 +44,9 @@ const formatDisplayType = (type: UnifiedRecurringListItem['itemDisplayType']) =>
   }
 };
 
-const formatFrequency = (frequency: UnifiedRecurringListItem['frequency']) => {
-  return frequency.charAt(0).toUpperCase() + frequency.slice(1);
+const formatFrequencyDisplay = (frequency: UnifiedRecurringListItem['frequency']) => {
+  if (!frequency) return 'N/A';
+  return frequency.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 };
 
 export function RecurringList({ items, onDeleteItem, onEditItem }: RecurringListProps) {
@@ -102,17 +103,22 @@ export function RecurringList({ items, onDeleteItem, onEditItem }: RecurringList
                   <TableCell className={`text-right font-semibold ${item.itemDisplayType === 'income' ? 'text-green-600' : 'text-destructive'}`}>
                     ${item.amount.toFixed(2)}
                   </TableCell>
-                  <TableCell>{formatFrequency(item.frequency)}</TableCell>
+                  <TableCell>{formatFrequencyDisplay(item.frequency)}</TableCell>
                   <TableCell>
                     {format(item.nextOccurrenceDate, "MMM dd, yyyy")}
                     {item.endDate && item.source === 'recurring' && <div className="text-xs text-muted-foreground">Ends: {format(new Date(item.endDate), "MMM dd, yyyy")}</div>}
+                     {item.frequency === 'semi-monthly' && item.source === 'recurring' && item.semiMonthlyFirstPayDate && item.semiMonthlySecondPayDate && (
+                        <div className="text-xs text-muted-foreground">
+                            Pay Dates: {format(new Date(item.semiMonthlyFirstPayDate), "MMM d")} & {format(new Date(item.semiMonthlySecondPayDate), "MMM d")}
+                        </div>
+                    )}
                   </TableCell>
                   <TableCell>
                      <Badge 
                         variant={item.status === "Ended" ? "outline" 
                                  : item.status === "Today" ? "default" 
                                  : "secondary" } 
-                        className={cn(item.status === "Today" && "bg-blue-500 text-white")}
+                        className={cn(item.status === "Today" && "bg-blue-500 text-white")} // Consider a specific 'today' color in theme
                     >
                         {item.status}
                     </Badge>
@@ -165,3 +171,4 @@ export function RecurringList({ items, onDeleteItem, onEditItem }: RecurringList
     </TooltipProvider>
   );
 }
+

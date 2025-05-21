@@ -77,7 +77,7 @@ export interface DebtPlan {
 export const recurringItemTypes = ['income', 'subscription', 'fixed-expense'] as const;
 export type RecurringItemType = typeof recurringItemTypes[number];
 
-export const recurringFrequencies = ['daily', 'weekly', 'bi-weekly', 'monthly', 'quarterly', 'yearly'] as const;
+export const recurringFrequencies = ['daily', 'weekly', 'bi-weekly', 'monthly', 'semi-monthly', 'quarterly', 'yearly'] as const;
 export type RecurringFrequency = typeof recurringFrequencies[number];
 
 export interface RecurringItem {
@@ -86,7 +86,9 @@ export interface RecurringItem {
   type: RecurringItemType;
   amount: number; // Always positive, type determines inflow/outflow
   frequency: RecurringFrequency;
-  startDate: Date;
+  startDate?: Date | null; // Used if frequency is NOT semi-monthly
+  semiMonthlyFirstPayDate?: Date | null; // Used if frequency IS semi-monthly
+  semiMonthlySecondPayDate?: Date | null; // Used if frequency IS semi-monthly
   endDate?: Date | null;
   notes?: string;
   userId: string;
@@ -105,7 +107,10 @@ export interface UnifiedRecurringListItem {
   nextOccurrenceDate: Date;
   status: 'Ended' | 'Today' | 'Upcoming';
   isDebt: boolean;
-  endDate?: Date | null;
+  endDate?: Date | null; // From RecurringItem
+  semiMonthlyFirstPayDate?: Date | null; // From RecurringItem, if applicable
+  semiMonthlySecondPayDate?: Date | null; // From RecurringItem, if applicable
   notes?: string;
   source: 'recurring' | 'debt'; // Origin of the item
 }
+
