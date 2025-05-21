@@ -90,6 +90,7 @@ export const Icons = {
   RefreshCw: RefreshCw,
   Settings2: Settings2,
   Clock: Clock, // Used in InvestmentManager and Report tabs
+  BarChartBig: BarChartBig, // Ensuring this is explicitly here
   Info: Info,
   // Report specific icons
   PieChart: PieChart, // For Spending by Category tab icon (alternative)
