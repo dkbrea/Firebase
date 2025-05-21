@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -115,4 +116,41 @@ body {
   main {
     flex-grow: 1;
   }
+}
+
+/* Custom style for react-day-picker event markers */
+.event-day-marker {
+  position: relative;
+}
+
+.event-day-marker::after {
+  content: '';
+  position: absolute;
+  bottom: 6px; /* Adjust for vertical position */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px; /* Size of the dot */
+  height: 6px; /* Size of the dot */
+  border-radius: 50%;
+  background-color: hsl(var(--primary)); /* Dot color */
+}
+
+.dark .event-day-marker::after {
+  background-color: hsl(var(--primary-foreground)); /* Dot color for dark mode */
+}
+
+/* Ensure selected days with events still show the event marker if desired, or style appropriately */
+.rdp-day_selected.event-day-marker::after {
+  background-color: hsl(var(--primary-foreground)); /* Or a contrasting color if primary is used for selection bg */
+}
+.dark .rdp-day_selected.event-day-marker::after {
+   background-color: hsl(var(--primary));
+}
+
+/* Today's date marker should be distinct */
+.rdp-day_today.event-day-marker::after {
+    background-color: hsl(var(--accent-foreground)); /* Ensure visibility on accent background */
+}
+.dark .rdp-day_today.event-day-marker::after {
+    background-color: hsl(var(--accent-foreground));
 }

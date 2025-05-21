@@ -154,7 +154,7 @@ export function RecurringManager() {
     combined.sort((a, b) => {
         if (a.status === "Ended" && b.status !== "Ended") return 1;
         if (b.status === "Ended" && a.status !== "Ended") return -1;
-        return a.nextOccurrenceDate.getTime() - b.nextOccurrenceDate.getTime();
+        return new Date(a.nextOccurrenceDate).getTime() - new Date(b.nextOccurrenceDate).getTime();
     });
     setUnifiedList(combined);
 
@@ -238,7 +238,7 @@ export function RecurringManager() {
           </Card>
         </TabsContent>
         <TabsContent value="calendar">
-            <RecurringCalendarView items={unifiedList.filter(item => item.source === 'recurring') as unknown as RecurringItem[]} />
+            <RecurringCalendarView items={unifiedList} />
         </TabsContent>
       </Tabs>
     </div>
