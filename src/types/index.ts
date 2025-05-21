@@ -23,15 +23,15 @@ export interface Transaction {
   id: string;
   date: Date;
   description: string;
-  amount: number; // Positive for income, negative for expense (persisted this way)
-  type: TransactionType; // Main type: 'income' or 'expense', derived from detailedType
-  detailedType?: TransactionDetailedType; // Specific user selection
-  categoryId?: string | null; // For variable-expenses primarily
-  accountId: string; // Link to an asset Account (source for expenses/transfers, destination for income)
-  toAccountId?: string | null; // Destination account for transfers (like goal contributions)
-  sourceId?: string; // ID of the linked RecurringItem, DebtAccount, or FinancialGoal
+  amount: number; // Positive for income or transfer source, negative for expense or transfer destination if viewed from source account
+  type: TransactionType; 
+  detailedType?: TransactionDetailedType; 
+  categoryId?: string | null; 
+  accountId: string; 
+  toAccountId?: string | null; 
+  sourceId?: string; 
   userId: string;
-  source?: string; // e.g., "Manual Entry"
+  source?: string; 
   notes?: string;
   tags?: string[];
   createdAt?: Date;
@@ -71,9 +71,9 @@ export interface DebtAccount {
   name: string;
   type: DebtAccountType;
   balance: number;
-  apr: number; // Annual Percentage Rate, e.g., 19.9 for 19.9%
+  apr: number; 
   minimumPayment: number;
-  paymentDayOfMonth: number; // e.g., 1, 15, 31
+  paymentDayOfMonth: number; 
   paymentFrequency: PaymentFrequency;
   userId: string;
   createdAt: Date;
@@ -116,7 +116,7 @@ export interface RecurringItem {
   id: string;
   name: string;
   type: RecurringItemType;
-  amount: number; // Always positive, type determines inflow/outflow
+  amount: number; 
   frequency: RecurringFrequency;
   startDate?: Date | null; 
   lastRenewalDate?: Date | null; 
@@ -199,10 +199,10 @@ export interface Holding {
   value: number;
   shares: number;
   price: number;
-  changePercent: number; // e.g., 1.25 for +1.25%, -0.5 for -0.5%
-  logoUrl?: string; // Optional: URL for a company/crypto logo
+  changePercent: number; 
+  logoUrl?: string; 
   userId: string;
-  accountId?: string; // Optional: link to an InvestmentAccount
+  accountId?: string; 
 }
 
 
@@ -227,22 +227,22 @@ export interface MonthlyForecastSubscriptionItem {
 export interface MonthlyForecastDebtPaymentItem {
   id: string; 
   name: string;
-  totalAmountInMonth: number; // This is the minimum payment
+  totalAmountInMonth: number; 
   debtType: DebtAccountType;
-  additionalPayment?: number; // User-entered additional payment for the forecast month
+  additionalPayment?: number; 
 }
 
 
 export interface MonthlyForecastVariableExpense {
   id: string; 
   name: string;
-  monthSpecificAmount: number; // User-editable amount for the forecast month
+  monthSpecificAmount: number; 
 }
 
 export interface MonthlyForecastGoalContribution {
   id: string; 
   name: string;
-  monthSpecificContribution: number; // User-editable amount for the forecast month
+  monthSpecificContribution: number; 
 }
 
 export interface MonthlyForecast {
@@ -267,4 +267,19 @@ export interface MonthlyForecast {
 
   remainingToBudget: number;
   isBalanced: boolean;
+}
+
+// Report Specific Types
+export interface CategorySpending {
+  name: string;
+  value: number; // amount spent
+  percentage?: number;
+  color: string;
+}
+
+export interface NetWorthDataPoint {
+  month: string; // e.g., "Jan '24"
+  netWorth: number;
+  assets: number;
+  liabilities: number;
 }

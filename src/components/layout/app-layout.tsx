@@ -8,7 +8,6 @@ import Icons from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { UserNav } from "./user-nav";
-import { useAuth } from "@/contexts/auth-context";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
@@ -29,6 +28,7 @@ const navItems: NavItem[] = [
   { href: "/budget", label: "Budget", icon: Icons.Budget },
   { href: "/goals", label: "Goals", icon: Icons.Goals },
   { href: "/investments", label: "Investments", icon: Icons.Investments },
+  { href: "/reports", label: "Reports", icon: Icons.Reports },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -92,26 +92,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </aside>
       
       <div className="flex flex-col min-h-screen overflow-hidden">
-        <header className="lg:hidden fixed top-0 left-0 right-0 z-40 flex h-16 items-center gap-4 border-b bg-card/80 backdrop-blur-sm px-4 shadow-sm">
-            <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+         {/* Mobile Header with Floating Hamburger Menu */}
+        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <SheetTrigger asChild>
-                <Button
-                variant="outline"
-                size="icon"
-                className="shrink-0"
-                >
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Toggle navigation menu</span>
+                <Button variant="outline" size="icon" className="lg:hidden fixed top-4 left-4 z-40 bg-card/80 backdrop-blur-sm hover:bg-card shadow-md">
+                    <Menu className="h-6 w-6" />
+                    <span className="sr-only">Toggle navigation menu</span>
                 </Button>
             </SheetTrigger>
             <SheetContent side="left" className="flex flex-col p-0 w-[280px] bg-sidebar border-r-0">
                 <SidebarNavContent onLinkClick={() => setMobileNavOpen(false)} />
             </SheetContent>
-            </Sheet>
-        </header>
+        </Sheet>
         
         <main className="flex-1 flex flex-col p-4 md:p-6 overflow-y-auto overflow-x-hidden bg-background relative">
-          <div className="lg:pt-0 pt-[64px]"> 
+           {/* Add padding top to prevent content from being obscured by the mobile menu button */}
+          <div className="lg:pt-0 pt-[64px] md:pt-[72px]"> 
             {children}
           </div>
         </main>
