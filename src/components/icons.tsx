@@ -1,5 +1,6 @@
+
 import type { SVGProps } from "react";
-import { Landmark, LayoutDashboard, ListPlus, CreditCard, Users, LogOut, Settings, Wallet, PiggyBank, Library, ShieldCheck, MoreHorizontal, Edit, Trash, DollarSign, HelpCircle, CircleDollarSign, Target, TrendingDown, TrendingUp, ReceiptText } from 'lucide-react';
+import { Landmark, LayoutDashboard, ListPlus, CreditCard, Users, LogOut, Settings, Wallet, PiggyBank, Library, ShieldCheck, MoreHorizontal, Edit, Trash, DollarSign, HelpCircle, CircleDollarSign, Target, TrendingDown, TrendingUp, ReceiptText, CalendarClock } from 'lucide-react';
 
 export const Icons = {
   Logo: (props: SVGProps<SVGSVGElement>) => (
@@ -24,6 +25,7 @@ export const Icons = {
   Transactions: CreditCard,
   Accounts: PiggyBank,
   Debts: Target, // Icon for Debts page
+  Recurring: CalendarClock, // Icon for Recurring page
   Auth: Users,
   Logout: LogOut,
   Settings: Settings,

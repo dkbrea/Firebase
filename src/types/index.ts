@@ -1,3 +1,4 @@
+
 export interface User {
   id: string;
   email?: string;
@@ -71,3 +72,22 @@ export interface DebtPlan {
   userId: string;
 }
 
+// Recurring Items Types
+export const recurringItemTypes = ['income', 'subscription', 'fixed-expense'] as const;
+export type RecurringItemType = typeof recurringItemTypes[number];
+
+export const recurringFrequencies = ['daily', 'weekly', 'bi-weekly', 'monthly', 'quarterly', 'yearly'] as const;
+export type RecurringFrequency = typeof recurringFrequencies[number];
+
+export interface RecurringItem {
+  id: string;
+  name: string;
+  type: RecurringItemType;
+  amount: number; // Always positive, type determines inflow/outflow
+  frequency: RecurringFrequency;
+  startDate: Date;
+  endDate?: Date | null;
+  notes?: string;
+  userId: string;
+  createdAt: Date;
+}

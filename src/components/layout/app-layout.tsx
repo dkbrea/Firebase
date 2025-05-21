@@ -24,6 +24,7 @@ const navItems: NavItem[] = [
   { href: "/categories", label: "Categories", icon: Icons.Categories },
   { href: "/accounts", label: "Accounts", icon: Icons.Accounts },
   { href: "/debts", label: "Debt Plan", icon: Icons.Debts },
+  { href: "/recurring", label: "Recurring", icon: Icons.Recurring },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
