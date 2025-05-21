@@ -103,11 +103,11 @@ export interface RecurringItem {
   type: RecurringItemType;
   amount: number; // Always positive, type determines inflow/outflow
   frequency: RecurringFrequency;
-  startDate?: Date | null; // Used if frequency is NOT semi-monthly AND type is NOT subscription
-  lastRenewalDate?: Date | null; // Used if type IS subscription
-  semiMonthlyFirstPayDate?: Date | null; // Used if frequency IS semi-monthly
-  semiMonthlySecondPayDate?: Date | null; // Used if frequency IS semi-monthly
-  endDate?: Date | null;
+  startDate?: Date | null; // Used if type is 'income' or 'fixed-expense' AND frequency is NOT 'semi-monthly'
+  lastRenewalDate?: Date | null; // Used if type IS 'subscription'
+  semiMonthlyFirstPayDate?: Date | null; // Used if frequency IS 'semi-monthly'
+  semiMonthlySecondPayDate?: Date | null; // Used if frequency IS 'semi-monthly'
+  endDate?: Date | null; // Only applicable for 'subscription' type
   notes?: string;
   userId: string;
   createdAt: Date;
@@ -132,4 +132,13 @@ export interface UnifiedRecurringListItem {
   notes?: string;
   source: 'recurring' | 'debt'; // Origin of the item
   categoryId?: PredefinedRecurringCategoryValue | null; // From RecurringItem
+}
+
+// Budgeting Types
+export interface BudgetCategory {
+  id: string;
+  name: string;
+  budgetedAmount: number;
+  userId: string; // Assuming categories are user-specific
+  createdAt: Date;
 }
