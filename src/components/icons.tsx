@@ -1,6 +1,6 @@
 
 import type { SVGProps } from "react";
-import { Landmark, LayoutDashboard, ListPlus, CreditCard, Users, LogOut, Settings, Wallet, PiggyBank, Library, ShieldCheck, MoreHorizontal, Edit, Trash, DollarSign, HelpCircle, CircleDollarSign, Target, TrendingDown, TrendingUp, ReceiptText, CalendarClock, ClipboardList, Flag, Home, Car, Plane, Briefcase, GraduationCap, Gift, LineChart, Coins, BarChart3 } from 'lucide-react';
+import { Landmark, LayoutDashboard, ListPlus, CreditCard, Users, LogOut, Settings, Wallet, PiggyBank, Library, ShieldCheck, MoreHorizontal, Edit, Trash, DollarSign, HelpCircle, CircleDollarSign, Target, TrendingDown, TrendingUp, ReceiptText, CalendarClock, ClipboardList, Flag, Home, Car, Plane, Briefcase, GraduationCap, Gift, LineChart, Coins, BarChart3, RefreshCw, Settings2, Clock, BarChartBig, Info } from 'lucide-react';
 
 export const Icons = {
   Logo: (props: SVGProps<SVGSVGElement>) => (
@@ -28,7 +28,7 @@ export const Icons = {
   Recurring: CalendarClock,
   Budget: ClipboardList, 
   Goals: Flag,
-  Investments: TrendingUp, // Added Investments icon
+  Investments: TrendingUp,
   Auth: Users,
   Logout: LogOut,
   Settings: Settings,
@@ -38,6 +38,7 @@ export const Icons = {
   Edit: Edit,
   Delete: Trash,
   DollarSign: DollarSign,
+  HelpCircle: HelpCircle,
   AccountTypeChecking: Landmark,
   AccountTypeSavings: PiggyBank,
   AccountTypeCreditCard: CreditCard,
@@ -68,7 +69,7 @@ export const Icons = {
   ),
   DebtTypeOther: HelpCircle,
   TrendingDown: TrendingDown,
-  TrendingUp: TrendingUp, // Already here, good for investments
+  // TrendingUp is already defined
   ReceiptText: ReceiptText,
   // Goal specific icons
   GoalDefault: CircleDollarSign, 
@@ -78,13 +79,17 @@ export const Icons = {
   Briefcase: Briefcase,
   GraduationCap: GraduationCap,
   Gift: Gift,
-  PiggyBank: PiggyBank, 
-  ShieldCheck: ShieldCheck,
+  // PiggyBank is already defined
+  // ShieldCheck is already defined
   // Investment Account Type Icons
   InvestmentBrokerage: LineChart,
-  InvestmentRetirement: BarChart3, // Using BarChart3 for Retirement (IRA/401k)
+  InvestmentRetirement: BarChartBig, 
   InvestmentCrypto: Coins,
-  InvestmentOther: DollarSign, // General for other investments
+  InvestmentOther: DollarSign, 
+  RefreshCw: RefreshCw,
+  Settings2: Settings2,
+  Clock: Clock,
+  Info: Info,
 };
 
 export default Icons;

@@ -103,42 +103,42 @@ export interface RecurringItem {
   type: RecurringItemType;
   amount: number; // Always positive, type determines inflow/outflow
   frequency: RecurringFrequency;
-  startDate?: Date | null; // Used if type is 'income' or 'fixed-expense' AND frequency is NOT 'semi-monthly'. Not used for 'subscription'.
-  lastRenewalDate?: Date | null; // Used if type IS 'subscription'
-  semiMonthlyFirstPayDate?: Date | null; // Used if frequency IS 'semi-monthly'
-  semiMonthlySecondPayDate?: Date | null; // Used if frequency IS 'semi-monthly'
-  endDate?: Date | null; // Only applicable for 'subscription' type. Not for 'income' or 'fixed-expense'.
+  startDate?: Date | null; 
+  lastRenewalDate?: Date | null; 
+  semiMonthlyFirstPayDate?: Date | null; 
+  semiMonthlySecondPayDate?: Date | null; 
+  endDate?: Date | null; 
   notes?: string;
   userId: string;
   createdAt: Date;
-  categoryId?: PredefinedRecurringCategoryValue | null; // Category for subscriptions/fixed-expenses
+  categoryId?: PredefinedRecurringCategoryValue | null; 
 }
 
 // Unified type for Recurring List
 export type UnifiedListItemType = RecurringItemType | 'debt-payment';
 
 export interface UnifiedRecurringListItem {
-  id: string; // Original ID of the item or debt
+  id: string; 
   name: string;
-  itemDisplayType: UnifiedListItemType; // For display (icon, color, type label)
-  amount: number; // Raw amount, always positive
-  frequency: RecurringFrequency | PaymentFrequency; // Union of possible frequencies
+  itemDisplayType: UnifiedListItemType; 
+  amount: number; 
+  frequency: RecurringFrequency | PaymentFrequency; 
   nextOccurrenceDate: Date;
   status: 'Ended' | 'Today' | 'Upcoming';
   isDebt: boolean;
-  endDate?: Date | null; // From RecurringItem
-  semiMonthlyFirstPayDate?: Date | null; // From RecurringItem, if applicable
-  semiMonthlySecondPayDate?: Date | null; // From RecurringItem, if applicable
+  endDate?: Date | null; 
+  semiMonthlyFirstPayDate?: Date | null; 
+  semiMonthlySecondPayDate?: Date | null; 
   notes?: string;
-  source: 'recurring' | 'debt'; // Origin of the item
-  categoryId?: PredefinedRecurringCategoryValue | null; // From RecurringItem
+  source: 'recurring' | 'debt'; 
+  categoryId?: PredefinedRecurringCategoryValue | null; 
 }
 
 // Budgeting Types
-export interface BudgetCategory { // Represents user-defined variable expense categories
+export interface BudgetCategory { 
   id: string;
   name: string;
-  budgetedAmount: number; // Default monthly budgeted amount
+  budgetedAmount: number; 
   userId: string;
   createdAt: Date;
 }
@@ -177,49 +177,62 @@ export interface InvestmentAccount {
   createdAt: Date;
 }
 
-
-// Budget Forecast Types (Updated)
-export interface MonthlyForecastIncomeItem {
-  id: string; // Original RecurringItem ID
+export interface Holding {
+  id: string;
+  symbol: string;
   name: string;
-  totalAmountInMonth: number; // Sum of all occurrences of this income in the month
+  value: number;
+  shares: number;
+  price: number;
+  changePercent: number; // e.g., 1.25 for +1.25%, -0.5 for -0.5%
+  logoUrl?: string; // Optional: URL for a company/crypto logo
+  userId: string;
+  accountId?: string; // Optional: link to an InvestmentAccount
+}
+
+
+// Budget Forecast Types 
+export interface MonthlyForecastIncomeItem {
+  id: string; 
+  name: string;
+  totalAmountInMonth: number; 
 }
 export interface MonthlyForecastFixedExpenseItem {
-  id: string; // Original RecurringItem ID
+  id: string; 
   name: string;
-  totalAmountInMonth: number; // Sum of all occurrences of this expense in the month
+  totalAmountInMonth: number; 
   categoryId?: PredefinedRecurringCategoryValue | null;
 }
 export interface MonthlyForecastSubscriptionItem {
-  id: string; // Original RecurringItem ID
+  id: string; 
   name: string;
-  totalAmountInMonth: number; // Sum of all occurrences of this subscription in the month
+  totalAmountInMonth: number; 
   categoryId?: PredefinedRecurringCategoryValue | null;
 }
 export interface MonthlyForecastDebtPaymentItem {
-  id: string; // Original DebtAccount ID
+  id: string; 
   name: string;
-  totalAmountInMonth: number; // Sum of all minimum payments for this debt in the month
+  totalAmountInMonth: number; 
   debtType: DebtAccountType;
-  additionalPayment?: number; // User-defined additional payment for this specific month
+  additionalPayment?: number; 
 }
 
 
 export interface MonthlyForecastVariableExpense {
-  id: string; // BudgetCategory id
+  id: string; 
   name: string;
-  monthSpecificAmount: number; // Editable amount for this specific month, initialized with baseBudgetedAmount
+  monthSpecificAmount: number; 
 }
 
 export interface MonthlyForecastGoalContribution {
-  id: string; // FinancialGoal id
+  id: string; 
   name: string;
-  monthSpecificContribution: number; // Editable amount for this specific month, initialized with baseProjectedContribution
+  monthSpecificContribution: number; 
 }
 
 export interface MonthlyForecast {
-  month: Date; // First day of the month
-  monthLabel: string; // e.g., "January 2024"
+  month: Date; 
+  monthLabel: string; 
   
   incomeItems: MonthlyForecastIncomeItem[];
   fixedExpenseItems: MonthlyForecastFixedExpenseItem[];
@@ -229,7 +242,7 @@ export interface MonthlyForecast {
   totalIncome: number;
   totalFixedExpenses: number; 
   totalSubscriptions: number; 
-  totalDebtMinimumPayments: number; // Sum of all minimum payments for the month
+  totalDebtMinimumPayments: number; 
   
   variableExpenses: MonthlyForecastVariableExpense[];
   totalVariableExpenses: number; 
