@@ -67,9 +67,13 @@ export function BudgetOnboardingModal({ leftToAllocate, totalIncome, onAddCatego
             .eq('user_id', user.id)
             .single();
 
-          if (fetchError && fetchError.code !== 'PGRST116') {
-            console.error("Error fetching setup progress:", fetchError);
-            return;
+          // Handle fetch error, but don't throw for PGRST116 (not found) which is expected for new users
+          if (fetchError) {
+            if (fetchError.code !== 'PGRST116') {
+              console.error("Error fetching setup progress:", JSON.stringify(fetchError));
+              // Continue with default values instead of returning
+            }
+            // If not found, we'll create a new record below
           }
 
           // Update setup progress
@@ -96,14 +100,20 @@ export function BudgetOnboardingModal({ leftToAllocate, totalIncome, onAddCatego
             }, { onConflict: 'user_id' });
 
           if (updateError) {
-            console.error("Error updating setup progress:", updateError);
-            return;
+            console.error("Error updating setup progress:", JSON.stringify(updateError));
+            // Log error but don't return to prevent breaking the user experience
+            toast({
+              title: "Warning",
+              description: "There was an issue saving your progress, but you can continue using the app.",
+              variant: "destructive"
+            });
+            // Continue with the flow
           }
           
           toast({
             title: "Budget Setup Complete",
             description: "Your zero-based budget has been set up successfully!",
-            variant: "success"
+            variant: "default"
           });
         }
       } catch (err) {

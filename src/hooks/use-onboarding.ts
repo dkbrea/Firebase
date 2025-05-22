@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
 
 export function useOnboarding() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -35,9 +37,13 @@ export function useOnboarding() {
           .eq('user_id', user.id)
           .single();
 
-        if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is 'not found' which is expected for new users
-          console.error("Error fetching user preferences:", fetchError);
-          throw new Error(`Failed to fetch user preferences: ${fetchError.message}`);
+        // Handle fetch error, but don't throw for PGRST116 (not found) which is expected for new users
+        if (fetchError) {
+          if (fetchError.code !== 'PGRST116') {
+            console.error("Error fetching user preferences:", JSON.stringify(fetchError));
+            // Continue with default values instead of throwing
+          }
+          // If not found, we'll create a new record below
         }
 
         // Initialize the setup_progress object or use existing one
@@ -71,8 +77,15 @@ export function useOnboarding() {
           .upsert(upsertData, { onConflict: 'user_id' });
 
         if (updateError) {
-          console.error("Error updating onboarding status:", updateError);
-          throw new Error(`Failed to update onboarding status: ${updateError.message}`);
+          console.error("Error updating onboarding status:", JSON.stringify(updateError));
+          // Log error but don't throw to prevent breaking the user experience
+          toast({
+            title: "Warning",
+            description: "There was an issue saving your progress, but you can continue using the app.",
+            variant: "destructive"
+          });
+          // Return with partial success
+          return { success: false, error: updateError };
         }
 
         // Update local state
