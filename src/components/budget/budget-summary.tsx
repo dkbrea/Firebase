@@ -40,9 +40,9 @@ export function BudgetSummary({
 
 
   const budgetItems = [
-    { label: "Variable Expenses", amount: totalBudgetedVariable, color: "text-blue-600" },
     { label: "Fixed Expenses", amount: totalActualFixedExpenses, color: "text-purple-600" },
     { label: "Subscriptions", amount: totalSubscriptions, color: "text-indigo-600" },
+    { label: "Variable Expenses", amount: totalBudgetedVariable, color: "text-blue-600" },
     { label: "Debt Payments", amount: totalDebtPayments, color: "text-red-600" },
     { label: "Goal Contributions", amount: totalGoalContributions, color: "text-sky-600" },
   ];
@@ -60,7 +60,7 @@ export function BudgetSummary({
             <span className="text-green-600">${totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
           <ul className="space-y-1 pl-4 text-sm text-muted-foreground">
-            {budgetItems.filter(item => item.amount > 0).map(item => ( // Only show items with amounts
+            {budgetItems.map(item => ( // Show all items regardless of amount
               <li key={item.label} className="flex justify-between">
                 <span>{item.label}:</span>
                 <span className={item.color}>${item.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>

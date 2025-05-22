@@ -33,6 +33,7 @@ export function BudgetManager() {
   const [variableExpenses, setVariableExpenses] = useState<VariableExpense[]>([]);
   const [goals, setGoals] = useState<FinancialGoal[]>([]);
   const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<Date>(new Date()); // Default to current month
 
   useEffect(() => {
     const fetchData = async () => {
@@ -248,6 +249,7 @@ export function BudgetManager() {
     }, 0);
   }, [goalsWithContributions]);
 
+  // Calculate the current month summary
   useEffect(() => {
     const today = new Date();
     const currentMonthStart = startOfMonth(today);
@@ -952,7 +954,47 @@ export function BudgetManager() {
   };
 
   const handleUpdateVariableExpenseAmount = (expenseId: string, newAmount: number) => {
-    setVariableExpenses(prev => prev.map(expense => expense.id === expenseId ? { ...expense, amount: newAmount } : expense));
+    // Update the variable expense amount in the main state
+    setVariableExpenses(prev => prev.map(expense => 
+      expense.id === expenseId ? { ...expense, amount: newAmount } : expense
+    ));
+    
+    // Also update this expense in all months of the forecast data
+    // This ensures changes in the current month view propagate to the forecast
+    setForecastData(prevForecast => {
+      if (prevForecast.length === 0) return prevForecast;
+      
+      return prevForecast.map(month => {
+        // Find and update the specific variable expense
+        const updatedVariableExpenses = month.variableExpenses.map(ve =>
+          ve.id === expenseId ? { ...ve, monthSpecificAmount: newAmount } : ve
+        );
+        
+        // Recalculate the total variable expenses
+        const newTotalVariableExpenses = updatedVariableExpenses.reduce(
+          (sum, ve) => sum + ve.monthSpecificAmount, 0
+        );
+        
+        // Recalculate remaining to budget
+        const newRemainingToBudget = month.totalIncome - (
+          month.totalFixedExpenses +
+          month.totalSubscriptions +
+          month.totalDebtMinimumPayments +
+          month.debtPaymentItems.reduce((sum, debt) => sum + (debt.additionalPayment || 0), 0) +
+          newTotalVariableExpenses +
+          month.totalGoalContributions
+        );
+        
+        // Return the updated month data
+        return {
+          ...month,
+          variableExpenses: updatedVariableExpenses,
+          totalVariableExpenses: newTotalVariableExpenses,
+          remainingToBudget: newRemainingToBudget,
+          isBalanced: Math.abs(newRemainingToBudget) < 0.01
+        };
+      });
+    });
   };
 
   const handleDeleteVariableExpense = (expenseId: string) => {
@@ -961,6 +1003,42 @@ export function BudgetManager() {
     if (expenseToDelete) {
         toast({ title: "Variable Expense Deleted", description: `"${expenseToDelete.name}" removed.`, variant: "destructive" });
     }
+  };
+  
+  // Function to get data for the selected month from forecast data
+  const getSelectedMonthData = () => {
+    // If forecast data is not yet loaded, return current month summary
+    if (forecastData.length === 0) {
+      return {
+        totalIncome: currentMonthSummary.totalIncome,
+        totalFixedExpenses: currentMonthSummary.totalActualFixedExpenses,
+        totalSubscriptions: currentMonthSummary.totalSubscriptions,
+        totalDebtMinimumPayments: currentMonthSummary.totalDebtPayments,
+        totalGoalContributions: currentMonthSummary.totalGoalContributions,
+        totalVariableExpenses: totalBudgetedVariable,
+      };
+    }
+    
+    // Find the selected month in forecast data
+    const selectedMonthStr = format(selectedMonth, 'yyyy-MM');
+    const selectedMonthData = forecastData.find(month => 
+      format(month.month, 'yyyy-MM') === selectedMonthStr
+    );
+    
+    // If found, return that month's data
+    if (selectedMonthData) {
+      return selectedMonthData;
+    }
+    
+    // If not found (e.g., selected month is outside forecast range),
+    // return data for the closest month in the forecast
+    const currentMonthIndex = getMonth(new Date());
+    const currentYearMonthStr = format(new Date(), 'yyyy-MM');
+    const currentMonthForecast = forecastData.find(month => 
+      format(month.month, 'yyyy-MM') === currentYearMonthStr
+    ) || forecastData[0];
+    
+    return currentMonthForecast;
   };
 
   const updateForecastMonth = (monthIndex: number, updatedMonthData: Partial<MonthlyForecast>) => {
@@ -1037,13 +1115,42 @@ export function BudgetManager() {
           <TabsTrigger value="forecast">12-Month Forecast</TabsTrigger>
         </TabsList>
         <TabsContent value="currentMonth">
+          <div className="mb-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">Budget for {format(selectedMonth, 'MMMM yyyy')}</h2>
+              <div className="flex items-center space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setSelectedMonth(new Date())}
+                  className={format(selectedMonth, 'yyyy-MM') === format(new Date(), 'yyyy-MM') ? 'bg-primary/10' : ''}
+                >
+                  Current Month
+                </Button>
+                <select 
+                  className="border rounded p-1 text-sm" 
+                  value={format(selectedMonth, 'yyyy-MM')}
+                  onChange={(e) => {
+                    const [year, month] = e.target.value.split('-').map(Number);
+                    setSelectedMonth(new Date(year, month - 1, 1));
+                  }}
+                >
+                  {forecastData.map((month) => (
+                    <option key={format(month.month, 'yyyy-MM')} value={format(month.month, 'yyyy-MM')}>
+                      {format(month.month, 'MMMM yyyy')}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
           <BudgetSummary
-            totalIncome={currentMonthSummary.totalIncome}
-            totalActualFixedExpenses={currentMonthSummary.totalActualFixedExpenses}
-            totalSubscriptions={currentMonthSummary.totalSubscriptions}
-            totalDebtPayments={currentMonthSummary.totalDebtPayments}
-            totalGoalContributions={currentMonthSummary.totalGoalContributions}
-            totalBudgetedVariable={totalBudgetedVariable}
+            totalIncome={getSelectedMonthData().totalIncome}
+            totalActualFixedExpenses={getSelectedMonthData().totalFixedExpenses}
+            totalSubscriptions={getSelectedMonthData().totalSubscriptions}
+            totalDebtPayments={getSelectedMonthData().totalDebtMinimumPayments}
+            totalGoalContributions={getSelectedMonthData().totalGoalContributions}
+            totalBudgetedVariable={getSelectedMonthData().totalVariableExpenses}
             onAddCategoryClick={() => setIsAddCategoryDialogOpen(true)}
           />
           <VariableExpenseList
