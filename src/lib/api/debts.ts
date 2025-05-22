@@ -22,6 +22,7 @@ export const getDebtAccounts = async (userId: string): Promise<{ accounts: DebtA
       apr: account.apr,
       minimumPayment: account.minimum_payment,
       paymentDayOfMonth: account.payment_day_of_month,
+      nextDueDate: account.next_due_date ? new Date(account.next_due_date) : new Date(), // Use the next_due_date field if available
       paymentFrequency: account.payment_frequency as PaymentFrequency,
       userId: account.user_id,
       createdAt: new Date(account.created_at)
@@ -54,6 +55,7 @@ export const getDebtAccount = async (accountId: string): Promise<{ account: Debt
       apr: data.apr,
       minimumPayment: data.minimum_payment,
       paymentDayOfMonth: data.payment_day_of_month,
+      nextDueDate: data.next_due_date ? new Date(data.next_due_date) : new Date(),
       paymentFrequency: data.payment_frequency as PaymentFrequency,
       userId: data.user_id,
       createdAt: new Date(data.created_at)
@@ -77,6 +79,7 @@ export const createDebtAccount = async (account: Omit<DebtAccount, 'id' | 'creat
         apr: account.apr,
         minimum_payment: account.minimumPayment,
         payment_day_of_month: account.paymentDayOfMonth,
+        next_due_date: account.nextDueDate,
         payment_frequency: account.paymentFrequency,
         user_id: account.userId
       })
@@ -120,6 +123,7 @@ export const updateDebtAccount = async (
     if (updates.apr !== undefined) updateData.apr = updates.apr;
     if (updates.minimumPayment !== undefined) updateData.minimum_payment = updates.minimumPayment;
     if (updates.paymentDayOfMonth !== undefined) updateData.payment_day_of_month = updates.paymentDayOfMonth;
+    if (updates.nextDueDate !== undefined) updateData.next_due_date = updates.nextDueDate;
     if (updates.paymentFrequency !== undefined) updateData.payment_frequency = updates.paymentFrequency;
     
     const { data, error } = await supabase

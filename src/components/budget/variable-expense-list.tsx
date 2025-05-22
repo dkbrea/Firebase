@@ -1,7 +1,8 @@
 
 "use client";
 
-import type { BudgetCategory } from "@/types";
+import type { VariableExpense, PredefinedRecurringCategoryValue } from "@/types";
+import { predefinedRecurringCategories } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -12,119 +13,129 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 interface VariableExpenseListProps {
-  categories: BudgetCategory[];
-  onUpdateCategoryAmount: (categoryId: string, newAmount: number) => void;
-  onDeleteCategory: (categoryId: string) => void;
-  // onAddCategoryClick prop is removed as it's now in BudgetSummary
+  expenses: VariableExpense[];
+  onUpdateExpenseAmount?: (expenseId: string, newAmount: number) => void;
+  onDeleteExpense: (expenseId: string) => void;
 }
 
-export function VariableExpenseList({ categories, onUpdateCategoryAmount, onDeleteCategory }: VariableExpenseListProps) {
+export function VariableExpenseList({ expenses, onUpdateExpenseAmount, onDeleteExpense }: VariableExpenseListProps) {
   const { toast } = useToast();
   const [editingAmounts, setEditingAmounts] = useState<Record<string, string>>({});
 
-  // Sync editingAmounts when categories prop changes (e.g. after adding/deleting)
+  // Sync editingAmounts when expenses prop changes (e.g. after adding/deleting)
   useEffect(() => {
     const newEditingAmounts: Record<string, string> = {};
-    categories.forEach(cat => {
-      newEditingAmounts[cat.id] = cat.budgetedAmount.toString();
+    expenses.forEach(expense => {
+      newEditingAmounts[expense.id] = expense.amount.toString();
     });
     setEditingAmounts(newEditingAmounts);
-  }, [categories]);
+  }, [expenses]);
 
-
-  const handleAmountChange = (categoryId: string, value: string) => {
-    setEditingAmounts(prev => ({ ...prev, [categoryId]: value }));
+  const handleAmountChange = (expenseId: string, value: string) => {
+    setEditingAmounts(prev => ({ ...prev, [expenseId]: value }));
   };
 
-  const handleAmountBlur = (categoryId: string) => {
-    const stringValue = editingAmounts[categoryId];
-    const originalCategory = categories.find(c => c.id === categoryId);
+  const handleAmountBlur = (expenseId: string) => {
+    if (!onUpdateExpenseAmount) return; // Skip if no update handler provided
+    
+    const stringValue = editingAmounts[expenseId];
+    const originalExpense = expenses.find(e => e.id === expenseId);
 
-    if (stringValue === undefined || stringValue.trim() === "" || originalCategory === undefined) {
-      // Revert to original if input is cleared or category not found
-      if (originalCategory) {
-        setEditingAmounts(prev => ({ ...prev, [categoryId]: originalCategory.budgetedAmount.toString() }));
+    if (stringValue === undefined || stringValue.trim() === "" || originalExpense === undefined) {
+      // Revert to original if input is cleared or expense not found
+      if (originalExpense) {
+        setEditingAmounts(prev => ({ ...prev, [expenseId]: originalExpense.amount.toString() }));
       }
       return;
     }
     const numericValue = parseFloat(stringValue);
     if (!isNaN(numericValue) && numericValue >= 0) {
-      if (numericValue !== originalCategory.budgetedAmount) { // Only update if changed
-        onUpdateCategoryAmount(categoryId, numericValue);
-        toast({ title: "Budget Updated", description: `Budget for ${originalCategory.name} updated.` });
+      if (numericValue !== originalExpense.amount) { // Only update if changed
+        onUpdateExpenseAmount(expenseId, numericValue);
+        toast({ title: "Expense Updated", description: `Amount for ${originalExpense.name} updated.` });
       }
     } else {
-      setEditingAmounts(prev => ({ ...prev, [categoryId]: originalCategory.budgetedAmount.toString() }));
+      setEditingAmounts(prev => ({ ...prev, [expenseId]: originalExpense.amount.toString() }));
       toast({ title: "Invalid Amount", description: "Please enter a valid non-negative number.", variant: "destructive" });
     }
   };
 
-  const totalBudgeted = categories.reduce((sum, cat) => sum + cat.budgetedAmount, 0);
+  const totalBudgeted = expenses.reduce((sum, expense) => sum + expense.amount, 0);
 
   return (
     <Card className="shadow-lg mt-6">
       <CardHeader>
         <div>
-            <CardTitle>Variable Expense Categories</CardTitle>
-            <CardDescription>Allocate your remaining income to these spending categories.</CardDescription>
+            <CardTitle>Variable Expenses</CardTitle>
+            <CardDescription>Track your variable expenses.</CardDescription>
         </div>
-        {/* "Add Category" button is removed from here */}
       </CardHeader>
       <CardContent>
-        {categories.length === 0 ? (
-          <p className="text-muted-foreground text-center py-6">No variable expense categories yet. Click "Add Category" in the banner above to start.</p>
+        {expenses.length === 0 ? (
+          <p className="text-muted-foreground text-center py-6">No variable expenses yet. Click "Add Variable Expense" to start.</p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Category Name</TableHead>
-                <TableHead className="text-right w-[200px]">Budgeted Amount ($)</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead className="text-right w-[200px]">Amount ($)</TableHead>
                 <TableHead className="text-right w-[100px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {categories.map((category) => (
-                <TableRow key={category.id}>
-                  <TableCell className="font-medium">{category.name}</TableCell>
+              {expenses.map((expense) => (
+                <TableRow key={expense.id}>
+                  <TableCell className="font-medium">{expense.name}</TableCell>
+                  <TableCell>
+                    {predefinedRecurringCategories.find(cat => cat.value === expense.category)?.label || expense.category}
+                  </TableCell>
                   <TableCell className="text-right">
                     <Input
                       type="number"
                       step="0.01"
                       min="0"
-                      value={editingAmounts[category.id] ?? category.budgetedAmount.toString()}
-                      onChange={(e) => handleAmountChange(category.id, e.target.value)}
-                      onBlur={() => handleAmountBlur(category.id)}
+                      value={editingAmounts[expense.id] ?? expense.amount.toString()}
+                      onChange={(e) => handleAmountChange(expense.id, e.target.value)}
+                      onBlur={() => handleAmountBlur(expense.id)}
                       onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur();}}
                       className="w-32 ml-auto text-right"
                       placeholder="0.00"
+                      disabled={!onUpdateExpenseAmount}
                     />
                   </TableCell>
                   <TableCell className="text-right">
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive h-8 w-8">
+                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Delete "{category.name}"?</AlertDialogTitle>
-                          <AlertDialogDescription>This will remove the category and its budgeted amount. This action cannot be undone.</AlertDialogDescription>
+                          <AlertDialogTitle>Delete "{expense.name}" Expense?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently remove this variable expense. This action cannot be undone.
+                          </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => onDeleteCategory(category.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                          <AlertDialogAction onClick={() => onDeleteExpense(expense.id)} className="bg-destructive hover:bg-destructive/90">
+                            Delete
+                          </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
                   </TableCell>
                 </TableRow>
               ))}
-              {categories.length > 0 && (
+              {expenses.length > 0 && (
                 <TableRow className="font-bold border-t-2 bg-muted/50">
-                    <TableCell>Total Budgeted Variable Expenses</TableCell>
-                    <TableCell className="text-right text-lg">${totalBudgeted.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
-                    <TableCell></TableCell>
+                  <TableCell>Total Budgeted Variable Expenses</TableCell>
+                  <td className="font-medium">Total</td>
+                  <td></td>
+                  <td className="text-right font-bold">${totalBudgeted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td></td>
                 </TableRow>
               )}
             </TableBody>

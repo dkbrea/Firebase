@@ -70,51 +70,83 @@ interface AddGoalDialogProps {
   children: ReactNode; // Trigger button
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onGoalAdded: (goalData: Omit<FinancialGoal, "id" | "userId" | "createdAt">) => void;
-  // existingGoal?: FinancialGoal; // For editing later
+  onGoalAdded: (goalData: Omit<FinancialGoal, "id" | "userId" | "createdAt">, keepOpen?: boolean) => void;
+  initialValues?: FinancialGoal; // For editing later
+  isEditing?: boolean;
+  onGoalEdited?: (goalId: string, goalData: Omit<FinancialGoal, "id" | "userId" | "createdAt">) => void;
 }
 
-export function AddGoalDialog({ children, isOpen, onOpenChange, onGoalAdded }: AddGoalDialogProps) {
+export function AddGoalDialog({ children, isOpen, onOpenChange, onGoalAdded, initialValues, isEditing = false, onGoalEdited }: AddGoalDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [formResetKey, setFormResetKey] = useState(0); // Add a key to force re-render
+  const [keepOpen, setKeepOpen] = useState(false);
+
+  // Define default values outside to reuse them
+  const defaultValues = {
+    name: initialValues?.name || "",
+    targetAmount: initialValues?.targetAmount || undefined,
+    currentAmount: initialValues?.currentAmount || 0,
+    targetDate: initialValues?.targetDate || undefined,
+    icon: initialValues?.icon || 'default',
+  };
 
   const form = useForm<AddGoalFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: "",
-      targetAmount: undefined,
-      currentAmount: 0,
-      targetDate: undefined,
-      icon: 'default',
-    },
+    defaultValues,
   });
 
-  async function onSubmit(values: AddGoalFormValues) {
+  async function onSubmit(values: AddGoalFormValues, keepOpenSubmit: boolean = false) {
     setIsLoading(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 700));
     
-    onGoalAdded({
-        name: values.name,
-        targetAmount: values.targetAmount,
-        currentAmount: values.currentAmount,
-        targetDate: startOfDay(values.targetDate), // Ensure time is stripped
-        icon: values.icon,
-    });
-    form.reset();
+    const goalData = {
+      name: values.name,
+      targetAmount: values.targetAmount,
+      currentAmount: values.currentAmount,
+      targetDate: startOfDay(values.targetDate), // Ensure time is stripped
+      icon: values.icon,
+    };
+    
+    if (isEditing && initialValues && onGoalEdited) {
+      // If editing, call the edit function
+      onGoalEdited(initialValues.id, goalData);
+      onOpenChange(false);
+    } else {
+      // If adding new, call the add function
+      onGoalAdded(goalData, keepOpenSubmit);
+      
+      // If not keeping open, close the dialog
+      if (!keepOpenSubmit) {
+        onOpenChange(false);
+      } else {
+        // For "Save & Add Another", just reset the form
+        resetFormFields();
+      }
+    }
+    
     setIsLoading(false);
-    onOpenChange(false); // Close dialog on success
   }
   
   const resetFormFields = () => {
-    form.reset({
-      name: "",
-      targetAmount: undefined,
-      currentAmount: 0,
-      targetDate: undefined,
-      icon: 'default',
+    // Clear all form fields and errors
+    form.clearErrors();
+    
+    // Reset to completely fresh state
+    form.reset(defaultValues, {
+      keepDefaultValues: false,
+      keepErrors: false,
+      keepDirty: false,
+      keepIsSubmitted: false,
+      keepTouched: false,
+      keepIsValid: false,
+      keepSubmitCount: false
     });
+    
+    // Reset date picker state
     setIsDatePickerOpen(false);
+    
+    // Force re-render with a new key
+    setFormResetKey(prev => prev + 1);
   }
 
 
@@ -126,13 +158,13 @@ export function AddGoalDialog({ children, isOpen, onOpenChange, onGoalAdded }: A
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>Add New Financial Goal</DialogTitle>
+          <DialogTitle>{isEditing ? 'Edit Financial Goal' : 'Add New Financial Goal'}</DialogTitle>
           <DialogDescription>
-            Define your financial target, how much you've saved, and by when you want to achieve it.
+            {isEditing ? 'Update your financial goal details.' : 'Define your financial target, how much you\'ve saved, and by when you want to achieve it.'}
           </DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-2">
+        <Form {...form} key={`goal-form-${formResetKey}`}>
+          <form onSubmit={form.handleSubmit((values) => onSubmit(values, false))} className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-2">
             <FormField
               control={form.control}
               name="name"
@@ -232,13 +264,47 @@ export function AddGoalDialog({ children, isOpen, onOpenChange, onGoalAdded }: A
                 </FormItem>
               )}
             />
-            <DialogFooter className="pt-4">
-              <Button type="button" variant="outline" onClick={() => { onOpenChange(false); resetFormFields(); }} disabled={isLoading}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? <Loader2 className="animate-spin" /> : "Add Goal"}
-              </Button>
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0 pt-4">
+              <div className="flex-1 flex justify-start">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => { onOpenChange(false); resetFormFields(); }} 
+                  disabled={isLoading}
+                  className="w-full sm:w-auto"
+                >
+                  Cancel
+                </Button>
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto">
+                {!isEditing && (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    disabled={isLoading}
+                    className="flex-1"
+                    onClick={() => {
+                      const values = form.getValues();
+                      if (form.formState.isValid) {
+                        onSubmit(values, true);
+                      } else {
+                        form.handleSubmit((values) => onSubmit(values, true))();
+                      }
+                    }}
+                  >
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Save & Add Another
+                  </Button>
+                )}
+                <Button 
+                  type="submit" 
+                  disabled={isLoading}
+                  className="flex-1"
+                >
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {isEditing ? 'Update' : 'Save'}
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </Form>

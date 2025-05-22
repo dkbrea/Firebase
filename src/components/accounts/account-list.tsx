@@ -28,6 +28,7 @@ interface AccountListProps {
   onDeleteAccount: (accountId: string) => void; // For asset accounts
   onSetPrimaryAccount: (accountId: string) => void; // For asset accounts
   onEditAccount: (account: Account) => void; // Placeholder for asset accounts
+  isUpdating?: boolean; // New prop to disable buttons during updates
 }
 
 const getAssetAccountTypeIcon = (type: AssetAccountType) => {
@@ -65,7 +66,7 @@ const formatDebtTypeLabel = (type: DebtAccountType) => {
 };
 
 
-export function AccountList({ accounts, onDeleteAccount, onSetPrimaryAccount, onEditAccount }: AccountListProps) {
+export function AccountList({ accounts, onDeleteAccount, onSetPrimaryAccount, onEditAccount, isUpdating = false }: AccountListProps) {
 
   const isDebtAccount = (account: DisplayableAccount): account is DebtAccount => {
     return debtAccountTypes.includes(account.type as DebtAccountType) && 'apr' in account;
@@ -157,6 +158,7 @@ export function AccountList({ accounts, onDeleteAccount, onSetPrimaryAccount, on
                       size="sm"
                       onClick={() => onSetPrimaryAccount(assetAccount.id)}
                       className="w-full sm:w-auto"
+                      disabled={isUpdating}
                     >
                       <Icons.Primary className="mr-2 h-4 w-4" /> Set as Primary
                     </Button>
@@ -170,7 +172,12 @@ export function AccountList({ accounts, onDeleteAccount, onSetPrimaryAccount, on
                     </Button> */}
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="text-muted-foreground hover:text-destructive"
+                          disabled={isUpdating}
+                        >
                           <Icons.Delete className="h-4 w-4" />
                         </Button>
                       </AlertDialogTrigger>

@@ -12,39 +12,50 @@ import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import type { BudgetCategory } from "@/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { VariableExpense } from "@/types";
+import { predefinedRecurringCategories } from "@/types";
 import { useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }).max(50, { message: "Name cannot exceed 50 characters."}),
-  budgetedAmount: z.preprocess(
+  category: z.string({
+    required_error: "Please select a category.",
+  }),
+  amount: z.preprocess(
     (val) => (typeof val === 'string' ? parseFloat(val.replace(/[^0-9.-]+/g,"")) : val),
-    z.number({ required_error: "Budgeted amount is required.", invalid_type_error: "Amount must be a number." }).min(0, { message: "Amount cannot be negative." })
+    z.number({ required_error: "Amount is required.", invalid_type_error: "Amount must be a number." }).min(0, { message: "Amount cannot be negative." })
   ),
 });
 
 type AddBudgetCategoryFormValues = z.infer<typeof formSchema>;
 
-interface AddBudgetCategoryDialogProps {
+interface AddVariableExpenseDialogProps {
   children: ReactNode;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onCategoryAdded: (categoryData: Omit<BudgetCategory, "id" | "userId" | "createdAt">) => void;
+  onExpenseAdded: (expenseData: Omit<VariableExpense, "id" | "userId" | "createdAt">) => void;
 }
 
-export function AddBudgetCategoryDialog({ children, isOpen, onOpenChange, onCategoryAdded }: AddBudgetCategoryDialogProps) {
+export function AddVariableExpenseDialog({ children, isOpen, onOpenChange, onExpenseAdded }: AddVariableExpenseDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const form = useForm<AddBudgetCategoryFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { name: "", budgetedAmount: undefined },
+    defaultValues: { name: "", category: "", amount: undefined },
   });
 
   async function onSubmit(values: AddBudgetCategoryFormValues) {
     setIsLoading(true);
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 500));
-    onCategoryAdded(values);
+    onExpenseAdded(values);
     form.reset();
     setIsLoading(false);
     onOpenChange(false);
@@ -55,24 +66,48 @@ export function AddBudgetCategoryDialog({ children, isOpen, onOpenChange, onCate
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add Variable Expense Category</DialogTitle>
-          <DialogDescription>Define a new category for your variable spending and set a monthly budget for it.</DialogDescription>
+          <DialogTitle>Add Variable Expense</DialogTitle>
+          <DialogDescription>Add a new variable expense with name, category, and monthly budget amount.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
             <FormField control={form.control} name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Category Name *</FormLabel>
+                  <FormLabel>Name *</FormLabel>
                   <FormControl><Input placeholder="e.g., Groceries, Dining Out" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField control={form.control} name="budgetedAmount"
+            <FormField
+              control={form.control}
+              name="category"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Monthly Budgeted Amount ($) *</FormLabel>
+                  <FormLabel>Category *</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {predefinedRecurringCategories.map((category) => (
+                        <SelectItem key={category.value} value={category.value}>
+                          {category.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField control={form.control} name="amount"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Amount ($) *</FormLabel>
                   <FormControl><Input type="number" step="0.01" placeholder="100.00" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -81,7 +116,7 @@ export function AddBudgetCategoryDialog({ children, isOpen, onOpenChange, onCate
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>Cancel</Button>
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? <Loader2 className="animate-spin" /> : "Add Category"}
+                {isLoading ? <Loader2 className="animate-spin" /> : "Add Expense"}
               </Button>
             </DialogFooter>
           </form>

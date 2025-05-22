@@ -73,7 +73,8 @@ export interface DebtAccount {
   balance: number;
   apr: number; 
   minimumPayment: number;
-  paymentDayOfMonth: number; 
+  paymentDayOfMonth?: number; 
+  nextDueDate: Date;
   paymentFrequency: PaymentFrequency;
   userId: string;
   createdAt: Date;
@@ -95,19 +96,14 @@ export const recurringFrequencies = ['daily', 'weekly', 'bi-weekly', 'monthly', 
 export type RecurringFrequency = typeof recurringFrequencies[number];
 
 export const predefinedRecurringCategories = [
-  { value: 'housing', label: 'Housing (Rent/Mortgage)' },
+  { value: 'housing', label: 'Housinig (Rent/Mortgage)' },
+  { value: 'food', label: 'Food (Groceries, Restaurants)' },
   { value: 'utilities', label: 'Utilities (Energy, Water, Internet, Phone)' },
-  { value: 'transportation', label: 'Transportation (Car, Gas, Public Transit)' },
-  { value: 'insurance', label: 'Insurance (Health, Auto, Life)' },
-  { value: 'food-groceries', label: 'Groceries' },
-  { value: 'health-wellness', label: 'Health & Wellness (Gym, Meds)' },
-  { value: 'childcare-education', label: 'Childcare & Education' },
-  { value: 'subscriptions-media', label: 'Subscriptions & Media' },
-  { value: 'software-productivity', label: 'Software & Productivity Tools' },
-  { value: 'personal-care', label: 'Personal Care Subscriptions' },
-  { value: 'loan-payments', label: 'Loan Payments (Non-debt plan)' },
-  { value: 'savings-investments', label: 'Savings & Investments (Fixed Transfer)' },
-  { value: 'other-fixed', label: 'Other Fixed Expense' },
+  { value: 'transportation', label: 'Transportation (Insurance, Gasoline, Maint.)' },
+  { value: 'health', label: 'Health (Meds, Insurance, Gym)' },
+  { value: 'personal', label: 'Personal' },
+  { value: 'home-family', label: 'Home/Family' },
+  { value: 'media-productivity', label: 'Media/Productivity' },
 ] as const;
 export type PredefinedRecurringCategoryValue = typeof predefinedRecurringCategories[number]['value'];
 
@@ -149,12 +145,22 @@ export interface UnifiedRecurringListItem {
   categoryId?: PredefinedRecurringCategoryValue | null; 
 }
 
-// Budgeting Types
-export interface BudgetCategory { 
+// Variable Expenses Types
+export interface VariableExpense {
   id: string;
   name: string;
-  budgetedAmount: number; 
-  // actualSpent?: number; // Future: for tracking actuals against budget
+  category: PredefinedRecurringCategoryValue; // Using the same categories as recurring items
+  amount: number;
+  userId: string;
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
+// Legacy type for backward compatibility during migration
+export interface BudgetCategory {
+  id: string;
+  name: string;
+  budgetedAmount: number;
   userId: string;
   createdAt: Date;
 }

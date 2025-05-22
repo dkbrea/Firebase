@@ -6,96 +6,258 @@ import { useState, useEffect } from "react";
 import { AccountList } from "./account-list";
 import { AddAccountDialog } from "./add-account-dialog";
 import { Button } from "@/components/ui/button";
-import { PlusCircle } from "lucide-react";
+import { PlusCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/auth-context";
+import { getAccounts, createAccount, updateAccount, deleteAccount } from "@/lib/api/accounts";
+import { getDebtAccounts } from "@/lib/api/debts";
 
-const mockAssetAccounts: Account[] = [
-  { id: "acc1", name: "Main Checking", type: "checking", bankName: "Capital One", last4: "1234", balance: 5231.89, isPrimary: true, userId: "1", createdAt: new Date() },
-  { id: "acc2", name: "Emergency Fund", type: "savings", bankName: "Ally Bank", last4: "5678", balance: 10500.00, isPrimary: false, userId: "1", createdAt: new Date() },
-  { id: "acc3", name: "Travel Rewards Card", type: "credit card", bankName: "Chase", last4: "9012", balance: -345.67, isPrimary: false, userId: "1", createdAt: new Date() }, // Example of CC as an asset with negative balance
-];
 
-const mockDebtAccounts: DebtAccount[] = [
-  { id: "debt1", name: "Visa Gold Card Debt", type: "credit-card", balance: 5250.75, apr: 18.9, minimumPayment: 150, userId: "1", createdAt: new Date() },
-  { id: "debt2", name: "Student Loan Debt - Navient", type: "student-loan", balance: 22500.00, apr: 6.8, minimumPayment: 280, userId: "1", createdAt: new Date() },
-];
 
 
 export function AccountManager() {
   const [assetAccounts, setAssetAccounts] = useState<Account[]>([]);
-  const [debtAccountsList, setDebtAccountsList] = useState<DebtAccount[]>([]); // Renamed to avoid conflict
+  const [debtAccountsList, setDebtAccountsList] = useState<DebtAccount[]>([]);
   const [isAddAccountDialogOpen, setIsAddAccountDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
+  // Fetch accounts from the database
   useEffect(() => {
-    // Simulate fetching accounts
-    setAssetAccounts(mockAssetAccounts);
-    setDebtAccountsList(mockDebtAccounts); // Load mock debt accounts
-  }, []);
-
-  const handleAddAccount = (newAccountData: Omit<Account, "id" | "userId" | "createdAt" | "isPrimary">) => {
-    const newAccount: Account = {
-      ...newAccountData,
-      id: `acc-${Date.now()}`,
-      userId: "1", // Mock user ID
-      createdAt: new Date(),
-      isPrimary: assetAccounts.filter(acc => acc.type !== 'credit card' || acc.balance >=0).length === 0, // Make first non-debt-like account primary
-    };
-    
-    setAssetAccounts((prevAccounts) => {
-      if (newAccount.isPrimary) {
-        return [
-          ...prevAccounts.map(acc => ({ ...acc, isPrimary: false })),
-          newAccount
-        ];
+    async function fetchAccounts() {
+      if (!user?.id) return;
+      
+      setIsLoading(true);
+      
+      try {
+        // Fetch asset accounts
+        const { accounts: fetchedAssetAccounts, error: assetError } = await getAccounts(user.id);
+        
+        if (assetError) {
+          console.error("Error fetching asset accounts:", assetError);
+          toast({
+            title: "Error",
+            description: "Failed to load your accounts. Please try again.",
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        // Fetch debt accounts
+        const { accounts: fetchedDebtAccounts, error: debtError } = await getDebtAccounts(user.id);
+        
+        if (debtError) {
+          console.error("Error fetching debt accounts:", debtError);
+          toast({
+            title: "Error",
+            description: "Failed to load your debt accounts. Please try again.",
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        setAssetAccounts(fetchedAssetAccounts || []);
+        setDebtAccountsList(fetchedDebtAccounts || []);
+      } catch (err) {
+        console.error("Unexpected error fetching accounts:", err);
+        toast({
+          title: "Error",
+          description: "An unexpected error occurred while loading your accounts.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
       }
-      return [...prevAccounts, newAccount];
-    });
+    }
+    
+    fetchAccounts();
+  }, [user?.id, toast]);
 
-    toast({
-      title: "Account Added",
-      description: `Account "${newAccount.name}" has been successfully created.`,
-    });
-    setIsAddAccountDialogOpen(false);
+  const handleAddAccount = async (newAccountData: Omit<Account, "id" | "userId" | "createdAt" | "isPrimary">, keepOpen = false) => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to add an account.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setIsUpdating(true);
+    
+    try {
+      // Determine if this should be the primary account
+      const shouldBePrimary = assetAccounts.filter(acc => acc.type !== 'credit card' || acc.balance >= 0).length === 0;
+      
+      // Create the account in the database
+      const { account: newAccount, error } = await createAccount({
+        ...newAccountData,
+        userId: user.id,
+        isPrimary: shouldBePrimary
+      });
+      
+      if (error || !newAccount) {
+        throw new Error(error || "Failed to create account");
+      }
+      
+      // Update local state
+      setAssetAccounts((prevAccounts) => {
+        if (newAccount.isPrimary) {
+          return [
+            ...prevAccounts.map(acc => ({ ...acc, isPrimary: false })),
+            newAccount
+          ];
+        }
+        return [...prevAccounts, newAccount];
+      });
+      
+      toast({
+        title: "Account Added",
+        description: `Account "${newAccount.name}" has been successfully created.`,
+      });
+      
+      if (!keepOpen) {
+        setIsAddAccountDialogOpen(false);
+      }
+    } catch (err: any) {
+      console.error("Error adding account:", err);
+      toast({
+        title: "Error",
+        description: err.message || "Failed to add your account. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
-  const handleDeleteAccount = (accountId: string) => {
+  const handleDeleteAccount = async (accountId: string) => {
     // This handler currently only manages asset accounts.
     // Deletion of debt accounts should be handled in the Debt Plan section.
+    if (!user?.id) return;
+    
     const accountToDelete = assetAccounts.find(acc => acc.id === accountId);
     if (!accountToDelete) return;
-
-    setAssetAccounts((prevAccounts) => prevAccounts.filter(acc => acc.id !== accountId));
-    toast({
-      title: "Account Deleted",
-      description: `Account "${accountToDelete.name}" has been deleted.`,
-      variant: "destructive",
-    });
+    
+    setIsUpdating(true);
+    
+    try {
+      // Delete the account from the database
+      const { success, error } = await deleteAccount(accountId);
+      
+      if (error || !success) {
+        throw new Error(error || "Failed to delete account");
+      }
+      
+      // Update local state
+      setAssetAccounts((prevAccounts) => prevAccounts.filter(acc => acc.id !== accountId));
+      
+      toast({
+        title: "Account Deleted",
+        description: `Account "${accountToDelete.name}" has been deleted.`,
+        variant: "destructive",
+      });
+    } catch (err: any) {
+      console.error("Error deleting account:", err);
+      toast({
+        title: "Error",
+        description: err.message || "Failed to delete your account. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
-  const handleSetPrimaryAccount = (accountId: string) => {
-    setAssetAccounts((prevAccounts) =>
-      prevAccounts.map(acc => ({
-        ...acc,
-        isPrimary: acc.id === accountId,
-      }))
-    );
-    const primaryAccount = assetAccounts.find(acc => acc.id === accountId);
-    if (primaryAccount) {
+  const handleSetPrimaryAccount = async (accountId: string) => {
+    if (!user?.id) return;
+    
+    const accountToSetPrimary = assetAccounts.find(acc => acc.id === accountId);
+    if (!accountToSetPrimary) return;
+    
+    setIsUpdating(true);
+    
+    try {
+      // First, update all accounts to not be primary
+      for (const account of assetAccounts) {
+        if (account.isPrimary && account.id !== accountId) {
+          await updateAccount(account.id, { isPrimary: false });
+        }
+      }
+      
+      // Then set the selected account as primary
+      const { account: updatedAccount, error } = await updateAccount(accountId, { isPrimary: true });
+      
+      if (error || !updatedAccount) {
+        throw new Error(error || "Failed to update primary account");
+      }
+      
+      // Update local state
+      setAssetAccounts((prevAccounts) =>
+        prevAccounts.map(acc => ({
+          ...acc,
+          isPrimary: acc.id === accountId,
+        }))
+      );
+      
       toast({
         title: "Primary Account Updated",
-        description: `"${primaryAccount.name}" is now your primary account.`,
+        description: `"${accountToSetPrimary.name}" is now your primary account.`,
       });
+    } catch (err: any) {
+      console.error("Error setting primary account:", err);
+      toast({
+        title: "Error",
+        description: err.message || "Failed to update your primary account. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUpdating(false);
     }
   };
   
-  const handleEditAccount = (updatedAccount: Account) => {
+  const handleEditAccount = async (updatedAccount: Account) => {
     // This handler currently only manages asset accounts.
-    setAssetAccounts(prevAccounts => prevAccounts.map(acc => acc.id === updatedAccount.id ? updatedAccount : acc));
-    toast({
-      title: "Account Updated",
-      description: `Account "${updatedAccount.name}" has been updated.`,
-    });
+    if (!user?.id) return;
+    
+    setIsUpdating(true);
+    
+    try {
+      // Update the account in the database
+      const { account: savedAccount, error } = await updateAccount(updatedAccount.id, {
+        name: updatedAccount.name,
+        type: updatedAccount.type,
+        bankName: updatedAccount.bankName,
+        last4: updatedAccount.last4,
+        balance: updatedAccount.balance,
+        isPrimary: updatedAccount.isPrimary
+      });
+      
+      if (error || !savedAccount) {
+        throw new Error(error || "Failed to update account");
+      }
+      
+      // Update local state
+      setAssetAccounts(prevAccounts => 
+        prevAccounts.map(acc => acc.id === updatedAccount.id ? savedAccount : acc)
+      );
+      
+      toast({
+        title: "Account Updated",
+        description: `Account "${updatedAccount.name}" has been updated.`,
+      });
+    } catch (err: any) {
+      console.error("Error updating account:", err);
+      toast({
+        title: "Error",
+        description: err.message || "Failed to update your account. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const allDisplayAccounts = [...assetAccounts, ...debtAccountsList];
@@ -108,23 +270,33 @@ export function AccountManager() {
           onOpenChange={setIsAddAccountDialogOpen}
           onAccountAdded={handleAddAccount}
         >
-          <Button onClick={() => setIsAddAccountDialogOpen(true)}>
+          <Button onClick={() => setIsAddAccountDialogOpen(true)} disabled={isUpdating}>
             <PlusCircle className="mr-2 h-4 w-4" /> Add New Asset Account
           </Button>
         </AddAccountDialog>
       </div>
 
-      <AccountList
-        accounts={allDisplayAccounts}
-        onDeleteAccount={handleDeleteAccount} // Only affects asset accounts from here
-        onSetPrimaryAccount={handleSetPrimaryAccount} // Only affects asset accounts from here
-        onEditAccount={handleEditAccount} // Only affects asset accounts from here
-      />
-       {allDisplayAccounts.length === 0 && (
-        <div className="text-center text-muted-foreground py-10">
-          <p className="text-lg">No accounts yet.</p>
-          <p>Click "Add New Asset Account" to get started or manage debts in the Debt Plan section.</p>
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+          <p className="text-muted-foreground">Loading your accounts...</p>
         </div>
+      ) : (
+        <>
+          <AccountList
+            accounts={allDisplayAccounts}
+            onDeleteAccount={handleDeleteAccount} // Only affects asset accounts from here
+            onSetPrimaryAccount={handleSetPrimaryAccount} // Only affects asset accounts from here
+            onEditAccount={handleEditAccount} // Only affects asset accounts from here
+            isUpdating={isUpdating}
+          />
+          {allDisplayAccounts.length === 0 && (
+            <div className="text-center text-muted-foreground py-10">
+              <p className="text-lg">No accounts yet.</p>
+              <p>Click "Add New Asset Account" to get started or manage debts in the Debt Plan section.</p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

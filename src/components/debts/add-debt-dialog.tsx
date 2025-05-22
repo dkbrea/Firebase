@@ -30,10 +30,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import type { DebtAccount, DebtAccountType, PaymentFrequency } from "@/types";
 import { debtAccountTypes, paymentFrequencies } from "@/types"; // Import the array of types
 import { useState, type ReactNode } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, CalendarIcon } from "lucide-react";
+import { format, startOfDay } from "date-fns";
+import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "Debt name must be at least 2 characters." }).max(50),
@@ -50,14 +54,7 @@ const formSchema = z.object({
     (val) => (typeof val === 'string' ? parseFloat(val.replace(/[^0-9.-]+/g,"")) : val),
     z.number({ invalid_type_error: "Minimum payment must be a number." }).positive({ message: "Minimum payment must be positive." })
   ),
-  paymentDayOfMonth: z.preprocess(
-    (val) => {
-      if (typeof val === 'string' && val.trim() !== '') return parseInt(val, 10);
-      if (typeof val === 'number') return val;
-      return undefined; // Keep undefined for Zod to catch required error if not provided
-    },
-    z.number({required_error: "Payment day is required."}).int().min(1, {message: "Day must be between 1 and 31."}).max(31, {message: "Day must be between 1 and 31."})
-  ),
+  nextDueDate: z.date({ required_error: "Next due date is required." }),
   paymentFrequency: z.enum(paymentFrequencies as [PaymentFrequency, ...PaymentFrequency[]], { required_error: "Please select a payment frequency." }),
 });
 
@@ -76,6 +73,7 @@ interface AddDebtDialogProps {
 export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded, initialValues, isEditing = false, onDebtEdited }: AddDebtDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [formResetKey, setFormResetKey] = useState(0); // Add a key to force re-render
+  const [isNextDueDatePickerOpen, setIsNextDueDatePickerOpen] = useState(false);
 
   // Define default values outside to reuse them
   const defaultValues = {
@@ -84,7 +82,7 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded, ini
     balance: initialValues?.balance || undefined,
     apr: initialValues?.apr || undefined,
     minimumPayment: initialValues?.minimumPayment || undefined,
-    paymentDayOfMonth: initialValues?.paymentDayOfMonth || undefined, // Keep undefined to allow placeholder to show
+    nextDueDate: initialValues?.nextDueDate ? startOfDay(new Date(initialValues.nextDueDate)) : startOfDay(new Date()),
     paymentFrequency: initialValues?.paymentFrequency || (undefined as unknown as PaymentFrequency), // Keep undefined to allow placeholder to show
   };
 
@@ -126,7 +124,8 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded, ini
       balance: values.balance,
       apr: values.apr,
       minimumPayment: values.minimumPayment,
-      paymentDayOfMonth: values.paymentDayOfMonth,
+      nextDueDate: values.nextDueDate,
+      paymentDayOfMonth: values.nextDueDate.getDate(), // Store the day for backward compatibility
       paymentFrequency: values.paymentFrequency
     };
     
@@ -243,13 +242,44 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded, ini
             />
              <FormField
               control={form.control}
-              name="paymentDayOfMonth"
+              name="nextDueDate"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Payment Day of Month *</FormLabel>
-                  <FormControl>
-                    <Input type="number" min="1" max="31" placeholder="e.g., 15" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} />
-                  </FormControl>
+                <FormItem className="flex flex-col">
+                  <FormLabel>Next Due Date *</FormLabel>
+                  <Popover open={isNextDueDatePickerOpen} onOpenChange={setIsNextDueDatePickerOpen}>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full pl-3 text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {field.value ? (
+                            format(field.value, "PPP")
+                          ) : (
+                            <span>Pick a date</span>
+                          )}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={(date) => {
+                          field.onChange(date);
+                          setIsNextDueDatePickerOpen(false);
+                        }}
+                        disabled={(date) =>
+                          date < new Date(new Date().setHours(0, 0, 0, 0))
+                        }
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                   <FormMessage />
                 </FormItem>
               )}

@@ -19,9 +19,10 @@ interface GoalsOverviewListCardProps {
   goals: FinancialGoalWithContribution[];
   onDeleteGoal: (goalId: string) => void;
   onEditGoal: (goalId: string) => void;
+  isDeleting?: boolean;
 }
 
-export function GoalsOverviewListCard({ goals, onDeleteGoal, onEditGoal }: GoalsOverviewListCardProps) {
+export function GoalsOverviewListCard({ goals, onDeleteGoal, onEditGoal, isDeleting = false }: GoalsOverviewListCardProps) {
   return (
     <Card className="shadow-lg">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -53,8 +54,8 @@ export function GoalsOverviewListCard({ goals, onDeleteGoal, onEditGoal }: Goals
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => onEditGoal(goal.id)} disabled>
-                                        <Edit3 className="mr-2 h-3.5 w-3.5 text-muted-foreground" /> Edit (Soon)
+                                    <DropdownMenuItem onClick={() => onEditGoal(goal.id)}>
+                                        <Edit3 className="mr-2 h-3.5 w-3.5 text-muted-foreground" /> Edit
                                     </DropdownMenuItem>
                                     <AlertDialogTrigger asChild>
                                         <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
@@ -75,8 +76,9 @@ export function GoalsOverviewListCard({ goals, onDeleteGoal, onEditGoal }: Goals
                                     <AlertDialogAction
                                         onClick={() => onDeleteGoal(goal.id)}
                                         className="bg-destructive hover:bg-destructive/90"
+                                        disabled={isDeleting}
                                     >
-                                        Delete Goal
+                                        {isDeleting ? "Deleting..." : "Delete Goal"}
                                     </AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>

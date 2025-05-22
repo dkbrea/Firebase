@@ -10,9 +10,11 @@ import { supabase } from "@/lib/supabase";
 import { AddAccountDialog } from "@/components/accounts/add-account-dialog";
 import { AddRecurringItemDialog } from "@/components/recurring/add-recurring-item-dialog";
 import { AddDebtDialog } from "@/components/debts/add-debt-dialog";
+import { AddGoalDialog } from "@/components/goals/add-goal-dialog";
 import { createAccount } from "@/lib/api/accounts";
 import { createDebtAccount } from "@/lib/api/debts";
-import type { Account, RecurringItem, DebtAccount } from "@/types";
+import { createFinancialGoal } from "@/lib/api/goals";
+import type { Account, RecurringItem, DebtAccount, FinancialGoal } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 
 export type SetupStep = {
@@ -31,10 +33,12 @@ export function SetupGuide() {
   const [showFixedExpenseDialog, setShowFixedExpenseDialog] = useState(false);
   const [showSubscriptionDialog, setShowSubscriptionDialog] = useState(false);
   const [showDebtDialog, setShowDebtDialog] = useState(false);
+  const [showGoalDialog, setShowGoalDialog] = useState(false);
   const [dialogKey, setDialogKey] = useState(0); // Add a key to force dialog recreation
   const [isSaving, setIsSaving] = useState(false);
   const [isAddingRecurringItem, setIsAddingRecurringItem] = useState(false);
   const [isAddingDebt, setIsAddingDebt] = useState(false);
+  const [isAddingGoal, setIsAddingGoal] = useState(false);
   const [setupProgressState, setSetupProgressState] = useState<{steps: Record<string, boolean>}>({steps: {}});
   const [setupSteps, setSetupSteps] = useState<SetupStep[]>([
     {
@@ -340,6 +344,29 @@ export function SetupGuide() {
                           >
                             {step.isCompleted ? 'Completed' : (
                               isAddingDebt ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Saving...
+                                </>
+                              ) : (
+                                <>
+                                  Set Up <ArrowRight className="ml-1 h-4 w-4" />
+                                </>
+                              )
+                            )}
+                          </Button>
+                        );
+                      case 'goals':
+                        return (
+                          <Button 
+                            variant={isNextStep ? "default" : "outline"}
+                            size="sm"
+                            className={step.isCompleted ? "bg-green-500 hover:bg-green-600" : "bg-purple-500 hover:bg-purple-600 text-white"}
+                            disabled={step.isCompleted || isAddingGoal}
+                            onClick={() => setShowGoalDialog(true)}
+                          >
+                            {step.isCompleted ? 'Completed' : (
+                              isAddingGoal ? (
                                 <>
                                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                   Saving...
@@ -709,6 +736,67 @@ export function SetupGuide() {
       >
         <Button type="button">Open Debt Dialog</Button>
       </AddDebtDialog>
+
+      {/* Add Financial Goal Dialog */}
+      <AddGoalDialog
+        key={`goal-dialog-${dialogKey}`}
+        isOpen={showGoalDialog}
+        onOpenChange={(open) => {
+          setShowGoalDialog(open);
+          if (!open) {
+            // Increment key when dialog closes to ensure fresh instance next time
+            setDialogKey(prev => prev + 1);
+          }
+        }}
+        onGoalAdded={async (goalData, keepOpen = false) => {
+          try {
+            setIsAddingGoal(true);
+            
+            if (user?.id) {
+              // Create the financial goal
+              const result = await createFinancialGoal({
+                ...goalData,
+                userId: user.id
+              });
+              
+              if (result.error) throw new Error(result.error);
+              
+              if (result.goal) {
+                // Mark the goals step as completed
+                const updatedSteps = [...setupSteps];
+                const goalStep = updatedSteps.find(step => step.id === 'goals');
+                if (goalStep) goalStep.isCompleted = true;
+                setSetupSteps(updatedSteps);
+                
+                toast({
+                  title: "Financial Goal Added",
+                  description: keepOpen ? "Financial goal added. You can add another one." : 
+                    "Your financial goal has been set up successfully."
+                });
+              }
+              
+              if (keepOpen) {
+                // Force a new dialog instance by incrementing the key
+                setDialogKey(prev => prev + 1);
+              } else {
+                // Close the dialog
+                setShowGoalDialog(false);
+              }
+            }
+          } catch (err: any) {
+            console.error("Error creating financial goal:", err);
+            toast({
+              title: "Error",
+              description: "Failed to create financial goal. Please try again.",
+              variant: "destructive"
+            });
+          } finally {
+            setIsAddingGoal(false);
+          }
+        }}
+      >
+        <Button type="button">Open Goal Dialog</Button>
+      </AddGoalDialog>
     </Card>
   );
 }
