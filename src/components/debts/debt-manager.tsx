@@ -2,68 +2,491 @@
 "use client";
 
 import type { DebtAccount, DebtPayoffStrategy, PaymentFrequency } from "@/types";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { DebtList } from "./debt-list";
 import { AddDebtDialog } from "./add-debt-dialog";
 import { PayoffStrategySelector } from "./payoff-strategy-selector";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Info } from "lucide-react";
+import { PlusCircle, Info, Loader2, ArrowDown, DollarSign, Calendar, TrendingDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Progress } from "@/components/ui/progress";
+import { getDebtAccounts, createDebtAccount, deleteDebtAccount, updateDebtAccount, getDebtPayoffStrategy, setDebtPayoffStrategy } from "@/lib/api/debts";
+import { useAuth } from "@/contexts/auth-context";
+import { format, addMonths } from "date-fns";
 
-const mockDebtAccounts: DebtAccount[] = [
-  { id: "debt1", name: "Visa Gold", type: "credit-card", balance: 5250.75, apr: 18.9, minimumPayment: 150, paymentDayOfMonth: 15, paymentFrequency: "monthly", userId: "1", createdAt: new Date() },
-  { id: "debt2", name: "Student Loan - Navient", type: "student-loan", balance: 22500.00, apr: 6.8, minimumPayment: 280, paymentDayOfMonth: 1, paymentFrequency: "monthly", userId: "1", createdAt: new Date() },
-  { id: "debt3", name: "Car Loan - Local CU", type: "auto-loan", balance: 8700.50, apr: 4.2, minimumPayment: 350, paymentDayOfMonth: 10, paymentFrequency: "bi-weekly", userId: "1", createdAt: new Date() },
-];
+
+
+// Debt Payoff Plan Component
+function DebtPayoffPlan({ debtAccounts, strategy }: { debtAccounts: DebtAccount[], strategy: DebtPayoffStrategy }) {
+  // Sort debts based on the selected strategy
+  const sortedDebts = useMemo(() => {
+    const debts = [...debtAccounts];
+    if (strategy === 'snowball') {
+      // Sort by balance (smallest to largest)
+      return debts.sort((a, b) => a.balance - b.balance);
+    } else {
+      // Sort by APR (highest to lowest)
+      return debts.sort((a, b) => b.apr - a.apr);
+    }
+  }, [debtAccounts, strategy]);
+
+  // Calculate total debt and monthly payment
+  const totalDebt = useMemo(() => {
+    return debtAccounts.reduce((sum, debt) => sum + debt.balance, 0);
+  }, [debtAccounts]);
+
+  const totalMinimumPayment = useMemo(() => {
+    return debtAccounts.reduce((sum, debt) => sum + debt.minimumPayment, 0);
+  }, [debtAccounts]);
+
+  // Calculate payoff timeline and generate payment schedule
+  const payoffPlan = useMemo(() => {
+    // Deep copy the sorted debts to avoid modifying the original array
+    const workingDebts = sortedDebts.map(debt => ({
+      ...debt,
+      currentBalance: debt.balance,
+      isPaidOff: false,
+      payoffDate: null as Date | null,
+      monthsToPayoff: 0,
+      totalInterestPaid: 0,
+      paymentSchedule: [] as Array<{month: number, payment: number, interestPaid: number, principalPaid: number, remainingBalance: number}>
+    }));
+
+    // Set a reasonable maximum number of months to prevent infinite loops
+    const MAX_MONTHS = 360; // 30 years
+    let month = 0;
+    let allPaidOff = false;
+    let extraPayment = 0;
+
+    while (!allPaidOff && month < MAX_MONTHS) {
+      month++;
+      
+      // Reset extra payment for this month
+      extraPayment = 0;
+      
+      // Apply minimum payments and calculate interest for each debt
+      for (const debt of workingDebts) {
+        if (debt.isPaidOff) continue;
+        
+        // Calculate monthly interest rate (APR / 12)
+        const monthlyInterestRate = debt.apr / 100 / 12;
+        
+        // Calculate interest for this month
+        const interestThisMonth = debt.currentBalance * monthlyInterestRate;
+        
+        // Apply minimum payment
+        let paymentAmount = debt.minimumPayment;
+        let principalPaid = paymentAmount - interestThisMonth;
+        
+        // If payment is more than remaining balance + interest
+        if (paymentAmount > debt.currentBalance + interestThisMonth) {
+          paymentAmount = debt.currentBalance + interestThisMonth;
+          principalPaid = debt.currentBalance;
+        }
+        
+        // Update balance
+        debt.currentBalance = Math.max(0, debt.currentBalance - principalPaid);
+        debt.totalInterestPaid += interestThisMonth;
+        
+        // Add to payment schedule
+        debt.paymentSchedule.push({
+          month,
+          payment: paymentAmount,
+          interestPaid: interestThisMonth,
+          principalPaid,
+          remainingBalance: debt.currentBalance
+        });
+        
+        // Check if paid off
+        if (debt.currentBalance === 0 && !debt.isPaidOff) {
+          debt.isPaidOff = true;
+          debt.payoffDate = addMonths(new Date(), month);
+          debt.monthsToPayoff = month;
+          
+          // Add this debt's minimum payment to extra payment for next month
+          extraPayment += debt.minimumPayment;
+        }
+      }
+      
+      // Apply extra payment to the target debt (first non-paid debt in the sorted list)
+      if (extraPayment > 0) {
+        const targetDebt = workingDebts.find(debt => !debt.isPaidOff);
+        if (targetDebt) {
+          // Calculate how much extra payment can be applied
+          const applicableExtraPayment = Math.min(extraPayment, targetDebt.currentBalance);
+          
+          if (applicableExtraPayment > 0) {
+            // Update balance
+            targetDebt.currentBalance = Math.max(0, targetDebt.currentBalance - applicableExtraPayment);
+            
+            // Update the last payment in the schedule
+            const lastPayment = targetDebt.paymentSchedule[targetDebt.paymentSchedule.length - 1];
+            lastPayment.payment += applicableExtraPayment;
+            lastPayment.principalPaid += applicableExtraPayment;
+            lastPayment.remainingBalance = targetDebt.currentBalance;
+            
+            // Check if paid off
+            if (targetDebt.currentBalance === 0) {
+              targetDebt.isPaidOff = true;
+              targetDebt.payoffDate = addMonths(new Date(), month);
+              targetDebt.monthsToPayoff = month;
+            }
+          }
+        }
+      }
+      
+      // Check if all debts are paid off
+      allPaidOff = workingDebts.every(debt => debt.isPaidOff);
+    }
+    
+    // Calculate total months to payoff and total interest paid
+    const totalMonthsToPayoff = Math.max(...workingDebts.map(debt => debt.monthsToPayoff));
+    const totalInterestPaid = workingDebts.reduce((sum, debt) => sum + debt.totalInterestPaid, 0);
+    
+    return {
+      debts: workingDebts,
+      totalMonthsToPayoff,
+      totalInterestPaid,
+      estimatedPayoffDate: addMonths(new Date(), totalMonthsToPayoff)
+    };
+  }, [sortedDebts]);
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col space-y-1">
+                <span className="text-sm font-medium text-muted-foreground">Total Debt</span>
+                <span className="text-2xl font-bold">${totalDebt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+              <DollarSign className="h-8 w-8 text-primary opacity-70" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col space-y-1">
+                <span className="text-sm font-medium text-muted-foreground">Estimated Payoff Date</span>
+                <span className="text-2xl font-bold">{format(payoffPlan.estimatedPayoffDate, 'MMM yyyy')}</span>
+              </div>
+              <Calendar className="h-8 w-8 text-primary opacity-70" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col space-y-1">
+                <span className="text-sm font-medium text-muted-foreground">Total Interest</span>
+                <span className="text-2xl font-bold">${payoffPlan.totalInterestPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+              <TrendingDown className="h-8 w-8 text-primary opacity-70" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
+        <div className="p-6">
+          <h3 className="text-lg font-medium mb-4">Payoff Order</h3>
+          <div className="space-y-4">
+            {payoffPlan.debts.map((debt, index) => (
+              <div key={debt.id} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold">
+                      {index + 1}
+                    </div>
+                    <div>
+                      <p className="font-medium">{debt.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {strategy === 'snowball' ? 
+                          `Balance: $${debt.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 
+                          `APR: ${debt.apr.toFixed(2)}%`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium">{format(debt.payoffDate || new Date(), 'MMM yyyy')}</p>
+                    <p className="text-sm text-muted-foreground">{debt.monthsToPayoff} months</p>
+                  </div>
+                </div>
+                <Progress value={100} className="h-2" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
+        <div className="p-6">
+          <h3 className="text-lg font-medium mb-4">Payment Schedule</h3>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableCaption>Your debt payoff schedule using the {strategy} method.</TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[100px]">Debt</TableHead>
+                  <TableHead>Current Balance</TableHead>
+                  <TableHead>APR</TableHead>
+                  <TableHead>Monthly Payment</TableHead>
+                  <TableHead>Payoff Date</TableHead>
+                  <TableHead>Total Interest</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {payoffPlan.debts.map((debt) => (
+                  <TableRow key={debt.id}>
+                    <TableCell className="font-medium">{debt.name}</TableCell>
+                    <TableCell>${debt.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                    <TableCell>{debt.apr.toFixed(2)}%</TableCell>
+                    <TableCell>${debt.minimumPayment.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                    <TableCell>{format(debt.payoffDate || new Date(), 'MMM yyyy')}</TableCell>
+                    <TableCell>${debt.totalInterestPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                  </TableRow>
+                ))}
+                <TableRow className="bg-muted/50">
+                  <TableCell className="font-bold">Total</TableCell>
+                  <TableCell className="font-bold">${totalDebt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                  <TableCell>-</TableCell>
+                  <TableCell className="font-bold">${totalMinimumPayment.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                  <TableCell className="font-bold">{format(payoffPlan.estimatedPayoffDate, 'MMM yyyy')}</TableCell>
+                  <TableCell className="font-bold">${payoffPlan.totalInterestPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function DebtManager() {
   const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>([]);
   const [payoffStrategy, setPayoffStrategy] = useState<DebtPayoffStrategy | null>(null);
   const [isAddDebtDialogOpen, setIsAddDebtDialogOpen] = useState(false);
+  const [isEditDebtDialogOpen, setIsEditDebtDialogOpen] = useState(false);
+  const [selectedDebtForEdit, setSelectedDebtForEdit] = useState<DebtAccount | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
-    // Simulate fetching debt accounts and saved strategy
-    setDebtAccounts(mockDebtAccounts);
-    // setPayoffStrategy('snowball'); // Optionally load a saved strategy
-  }, []);
-
-  const handleAddDebtAccount = (newDebtData: Omit<DebtAccount, "id" | "userId" | "createdAt">) => {
-    const newAccount: DebtAccount = {
-      ...newDebtData,
-      id: `debt-${Date.now()}`,
-      userId: "1", // Mock user ID
-      createdAt: new Date(),
-    };
+    async function fetchDebtData() {
+      if (!user?.id) return;
+      
+      setIsLoading(true);
+      try {
+        // Fetch debt accounts
+        const accountsResult = await getDebtAccounts(user.id);
+        if (accountsResult.error) {
+          throw new Error(accountsResult.error);
+        }
+        setDebtAccounts(accountsResult.accounts || []);
+        
+        // Fetch saved payoff strategy
+        try {
+          const strategyResult = await getDebtPayoffStrategy(user.id);
+          if (strategyResult.error) {
+            console.error("Error fetching payoff strategy:", strategyResult.error);
+            // Set a default strategy if there's an error
+            setPayoffStrategy('snowball'); // Default to snowball method
+          } else if (strategyResult.strategy) {
+            setPayoffStrategy(strategyResult.strategy);
+          } else {
+            // If no strategy is set, default to snowball
+            setPayoffStrategy('snowball');
+          }
+        } catch (strategyError) {
+          console.error("Exception fetching payoff strategy:", strategyError);
+          // Set a default strategy if there's an exception
+          setPayoffStrategy('snowball'); // Default to snowball method
+        }
+      } catch (err: any) {
+        console.error("Error fetching debt data:", err);
+        toast({
+          title: "Error",
+          description: "Failed to load your debt accounts. Please try refreshing the page.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
     
-    setDebtAccounts((prevAccounts) => [...prevAccounts, newAccount]);
-    toast({
-      title: "Debt Account Added",
-      description: `Debt "${newAccount.name}" has been successfully added.`,
-    });
-    setIsAddDebtDialogOpen(false);
+    fetchDebtData();
+  }, [user?.id, toast]);
+
+  const handleAddDebtAccount = async (newDebtData: Omit<DebtAccount, "id" | "userId" | "createdAt">, keepOpen = false) => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to add debt accounts.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      // Add userId to the debt data
+      const debtDataWithUser = {
+        ...newDebtData,
+        userId: user.id
+      };
+      
+      // Create the debt account in the database
+      const result = await createDebtAccount(debtDataWithUser);
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      
+      if (result.account) {
+        // Add the new account to the local state
+        setDebtAccounts((prevAccounts) => [...prevAccounts, result.account!]);
+        
+        toast({
+          title: "Debt Account Added",
+          description: `Debt "${result.account.name}" has been successfully added.`,
+        });
+        
+        if (!keepOpen) {
+          setIsAddDebtDialogOpen(false);
+        }
+      }
+    } catch (err: any) {
+      console.error("Error adding debt account:", err);
+      toast({
+        title: "Error",
+        description: "Failed to add debt account. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDeleteDebtAccount = (debtId: string) => {
+  const handleEditDebtAccount = (debt: DebtAccount) => {
+    setSelectedDebtForEdit(debt);
+    setIsEditDebtDialogOpen(true);
+  };
+
+  const handleUpdateDebtAccount = async (debtId: string, updatedDebtData: Omit<DebtAccount, "id" | "userId" | "createdAt">) => {
+    if (!user?.id) return;
+    
+    setIsSubmitting(true);
+    try {
+      // Update the debt account in the database
+      const result = await updateDebtAccount(debtId, updatedDebtData);
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      
+      if (result.account) {
+        // Update the account in the local state
+        setDebtAccounts((prevAccounts) => 
+          prevAccounts.map(account => 
+            account.id === debtId ? result.account! : account
+          )
+        );
+        
+        toast({
+          title: "Debt Account Updated",
+          description: `Debt "${result.account.name}" has been successfully updated.`,
+        });
+        
+        setIsEditDebtDialogOpen(false);
+        setSelectedDebtForEdit(null);
+      }
+    } catch (err: any) {
+      console.error("Error updating debt account:", err);
+      toast({
+        title: "Error",
+        description: "Failed to update debt account. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteDebtAccount = async (debtId: string) => {
+    if (!user?.id) return;
+    
     const accountToDelete = debtAccounts.find(acc => acc.id === debtId);
     if (!accountToDelete) return;
-
-    setDebtAccounts((prevAccounts) => prevAccounts.filter(acc => acc.id !== debtId));
-    toast({
-      title: "Debt Account Deleted",
-      description: `Debt "${accountToDelete.name}" has been deleted.`,
-      variant: "destructive",
-    });
+    
+    try {
+      // Delete the debt account from the database
+      const result = await deleteDebtAccount(debtId);
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      
+      if (result.success) {
+        // Remove the account from the local state
+        setDebtAccounts((prevAccounts) => prevAccounts.filter(acc => acc.id !== debtId));
+        
+        toast({
+          title: "Debt Account Deleted",
+          description: `Debt "${accountToDelete.name}" has been deleted.`,
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      console.error("Error deleting debt account:", err);
+      toast({
+        title: "Error",
+        description: "Failed to delete debt account. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
   
-  const handleStrategySelect = (strategy: DebtPayoffStrategy) => {
-    setPayoffStrategy(strategy);
-    toast({
-      title: "Payoff Strategy Updated",
-      description: `You've selected the ${strategy.charAt(0).toUpperCase() + strategy.slice(1)} method.`,
-    });
+  const handleStrategySelect = async (strategy: DebtPayoffStrategy) => {
+    if (!user?.id) return;
+    
+    setIsSubmitting(true);
+    try {
+      // Save the strategy to the database
+      const result = await setDebtPayoffStrategy(user.id, strategy);
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      
+      if (result.success) {
+        // Update the local state
+        setPayoffStrategy(strategy);
+        
+        toast({
+          title: "Payoff Strategy Updated",
+          description: `You've selected the ${strategy.charAt(0).toUpperCase() + strategy.slice(1)} method.`,
+        });
+      }
+    } catch (err: any) {
+      console.error("Error setting payoff strategy:", err);
+      toast({
+        title: "Error",
+        description: "Failed to update payoff strategy. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -79,17 +502,22 @@ export function DebtManager() {
             onOpenChange={setIsAddDebtDialogOpen}
             onDebtAdded={handleAddDebtAccount}
           >
-            <Button onClick={() => setIsAddDebtDialogOpen(true)}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add New Debt
+            <Button onClick={() => setIsAddDebtDialogOpen(true)} disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />} Add New Debt
             </Button>
           </AddDebtDialog>
         </CardHeader>
         <CardContent>
-          {debtAccounts.length > 0 ? (
+          {isLoading ? (
+            <div className="flex justify-center items-center py-10">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="ml-2 text-muted-foreground">Loading your debt accounts...</span>
+            </div>
+          ) : debtAccounts.length > 0 ? (
             <DebtList
               debtAccounts={debtAccounts}
               onDeleteDebtAccount={handleDeleteDebtAccount}
-              // onEditDebtAccount={handleEditDebtAccount} // For future implementation
+              onEditDebtAccount={handleEditDebtAccount}
             />
           ) : (
             <div className="text-center text-muted-foreground py-10">
@@ -108,13 +536,39 @@ export function DebtManager() {
       )}
 
       {payoffStrategy && debtAccounts.length > 0 && (
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertTitle>Next Steps</AlertTitle>
-          <AlertDescription>
-            Based on the <strong>{payoffStrategy}</strong> method and your listed debts, a detailed payoff plan would be generated here. (This part is for future implementation). For now, ensure all debts are accurately entered.
-          </AlertDescription>
-        </Alert>
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingDown className="h-5 w-5 text-primary" />
+              Debt Payoff Plan - {payoffStrategy === 'snowball' ? 'Snowball Method' : 'Avalanche Method'}
+            </CardTitle>
+            <CardDescription>
+              {payoffStrategy === 'snowball' ? 
+                'Paying off debts from smallest to largest balance to build momentum.' : 
+                'Paying off debts from highest to lowest interest rate to minimize interest.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DebtPayoffPlan debtAccounts={debtAccounts} strategy={payoffStrategy} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Edit Debt Dialog */}
+      {selectedDebtForEdit && (
+        <AddDebtDialog
+          isOpen={isEditDebtDialogOpen}
+          onOpenChange={(open) => {
+            setIsEditDebtDialogOpen(open);
+            if (!open) setSelectedDebtForEdit(null);
+          }}
+          onDebtAdded={() => {}} // Not used in edit mode
+          initialValues={selectedDebtForEdit}
+          isEditing={true}
+          onDebtEdited={handleUpdateDebtAccount}
+        >
+          <Button className="hidden">Edit Debt</Button>
+        </AddDebtDialog>
       )}
     </div>
   );

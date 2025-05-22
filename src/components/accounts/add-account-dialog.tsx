@@ -52,7 +52,7 @@ interface AddAccountDialogProps {
   children: ReactNode; // Trigger button
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onAccountAdded: (accountData: Omit<Account, "id" | "userId" | "createdAt" | "isPrimary">) => void;
+  onAccountAdded: (accountData: Omit<Account, "id" | "userId" | "createdAt" | "isPrimary">, keepOpen?: boolean) => void;
   // existingAccount?: Account; // For editing, implement later
 }
 
@@ -70,7 +70,7 @@ export function AddAccountDialog({ children, isOpen, onOpenChange, onAccountAdde
     },
   });
 
-  async function onSubmit(values: AddAccountFormValues) {
+  async function onSubmit(values: AddAccountFormValues, keepOpen: boolean = false) {
     setIsLoading(true);
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 700));
@@ -82,10 +82,23 @@ export function AddAccountDialog({ children, isOpen, onOpenChange, onAccountAdde
         last4: values.last4 || undefined,
         balance: values.balance,
     };
-    onAccountAdded(accountData);
-    form.reset();
+    onAccountAdded(accountData, keepOpen);
+    
+    // Reset form with default values
+    form.reset({
+      name: "",
+      type: undefined,
+      bankName: "",
+      last4: "",
+      balance: 0,
+    });
+    
     setIsLoading(false);
-    onOpenChange(false); // Close dialog on success
+    
+    // Only close the dialog if not keeping it open
+    if (!keepOpen) {
+      onOpenChange(false); 
+    }
   }
 
   return (
@@ -122,7 +135,11 @@ export function AddAccountDialog({ children, isOpen, onOpenChange, onAccountAdde
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Account Type *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select 
+                    onValueChange={field.onChange} 
+                    value={field.value}
+                    defaultValue={field.value}
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select an account type" />
@@ -179,13 +196,25 @@ export function AddAccountDialog({ children, isOpen, onOpenChange, onAccountAdde
                 </FormItem>
               )}
             />
-            <DialogFooter>
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? <Loader2 className="animate-spin" /> : "Add Account"}
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  type="button" 
+                  variant="secondary" 
+                  disabled={isLoading}
+                  onClick={() => form.handleSubmit(values => onSubmit(values, true))()}
+                >
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Save & Add Another
+                </Button>
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Save
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </Form>

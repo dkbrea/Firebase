@@ -22,7 +22,7 @@ import { format } from "date-fns";
 interface DebtListProps {
   debtAccounts: DebtAccount[];
   onDeleteDebtAccount: (debtId: string) => void;
-  // onEditDebtAccount: (debt: DebtAccount) => void; // Placeholder for future
+  onEditDebtAccount: (debt: DebtAccount) => void;
 }
 
 const getDebtTypeIcon = (type: DebtAccount["type"]) => {
@@ -58,7 +58,7 @@ const getDayOrdinal = (day: number): string => {
   }
 };
 
-export function DebtList({ debtAccounts, onDeleteDebtAccount }: DebtListProps) {
+export function DebtList({ debtAccounts, onDeleteDebtAccount, onEditDebtAccount }: DebtListProps) {
 
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -100,9 +100,9 @@ export function DebtList({ debtAccounts, onDeleteDebtAccount }: DebtListProps) {
             </div>
           </CardContent>
           <CardFooter className="flex justify-end items-center gap-2 pt-4 border-t">
-            {/* <Button variant="ghost" size="sm" onClick={() => onEditDebtAccount(debt)} className="text-muted-foreground hover:text-primary">
+            <Button variant="ghost" size="sm" onClick={() => onEditDebtAccount(debt)} className="text-muted-foreground hover:text-primary">
               <Icons.Edit className="h-4 w-4" />
-            </Button> */}
+            </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive">

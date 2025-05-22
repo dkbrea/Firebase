@@ -9,53 +9,146 @@ import type {
 } from "@/types";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/auth-context";
+import { supabase } from "@/lib/supabase";
 import { BudgetSummary } from "./budget-summary";
 import { VariableExpenseList } from "./variable-expense-list";
 import { AddBudgetCategoryDialog } from "./add-budget-category-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BudgetForecastView } from "./budget-forecast-view";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import {
   startOfMonth, endOfMonth, isWithinInterval, setDate, addDays, addWeeks,
   addMonths, addQuarters, addYears, getDate, startOfDay, isBefore, isAfter,
   differenceInCalendarMonths, isPast, format, getYear, getMonth, isSameDay
 } from "date-fns";
 
-// Mock data - in a real app, this would come from a data store / API
-const mockRecurringItems: RecurringItem[] = [
-  { id: "rec1", name: "Main Salary", type: "income", amount: 3000, frequency: "monthly", startDate: new Date(2024, 0, 15), userId: "1", createdAt: new Date() },
-  { id: "rec-sm", name: "Bi-weekly Pay", type: "income", amount: 1200, frequency: "semi-monthly", semiMonthlyFirstPayDate: new Date(2024, 6, 1), semiMonthlySecondPayDate: new Date(2024, 6, 15), userId: "1", createdAt: new Date() },
-  { id: "rec2", name: "Netflix Subscription", type: "subscription", amount: 15.99, frequency: "monthly", lastRenewalDate: new Date(2024, 6, 5), userId: "1", createdAt: new Date(), categoryId: "subscriptions-media" },
-  { id: "rec3", name: "Rent Payment", type: "fixed-expense", amount: 1200, frequency: "monthly", startDate: new Date(2024, 0, 1), userId: "1", createdAt: new Date(), categoryId: "housing" },
-  { id: "rec4", name: "Car Insurance", type: "fixed-expense", amount: 150, frequency: "monthly", startDate: new Date(2024, 0, 10), userId: "1", createdAt: new Date(), categoryId: "insurance" },
-];
-const mockDebtAccounts: DebtAccount[] = [
-  { id: "debt1", name: "Visa Gold Credit Card", type: "credit-card", balance: 5250.75, apr: 18.9, minimumPayment: 150, paymentDayOfMonth: 15, paymentFrequency: "monthly", userId: "1", createdAt: new Date(2025,0,1) },
-  { id: "debt2", name: "Student Loan - Federal", type: "student-loan", balance: 22000, apr: 5.0, minimumPayment: 250, paymentDayOfMonth: 1, paymentFrequency: "monthly", userId: "1", createdAt: new Date(2025,0,1) },
-];
-const mockVariableCategories: BudgetCategory[] = [
-  { id: "var1", name: "Groceries", budgetedAmount: 400, userId: "1", createdAt: new Date() },
-  { id: "var2", name: "Dining Out / Restaurants", budgetedAmount: 150, userId: "1", createdAt: new Date() },
-  { id: "var3", name: "Gasoline / Transportation", budgetedAmount: 100, userId: "1", createdAt: new Date() },
-  { id: "var4", name: "Entertainment", budgetedAmount: 75, userId: "1", createdAt: new Date() },
-];
-const mockGoals: FinancialGoal[] = [
-  { id: "goal1", name: "New Car Down Payment", targetAmount: 5000, currentAmount: 1200, targetDate: new Date(2025, 11, 31), icon: "car", userId: "1", createdAt: new Date() },
-  { id: "goal2", name: "Vacation to Hawaii", targetAmount: 3000, currentAmount: 300, targetDate: new Date(2025, 11, 31), icon: "plane", userId: "1", createdAt: new Date() },
-  { id: "goal3", name: "Emergency Fund Top-up", targetAmount: 10000, currentAmount: 8500, targetDate: new Date(2025, 11, 31), icon: "shield-check", userId: "1", createdAt: new Date() },
-];
-
-
 export function BudgetManager() {
   const { toast } = useToast();
-  // In a real app, these would be fetched
-  const [recurringItems, setRecurringItems] = useState<RecurringItem[]>(mockRecurringItems);
-  const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>(mockDebtAccounts);
-  const [variableCategories, setVariableCategories] = useState<BudgetCategory[]>(mockVariableCategories);
-  const [goals, setGoals] = useState<FinancialGoal[]>(mockGoals);
-
+  const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const [recurringItems, setRecurringItems] = useState<RecurringItem[]>([]);
+  const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>([]);
+  const [variableCategories, setVariableCategories] = useState<BudgetCategory[]>([]);
+  const [goals, setGoals] = useState<FinancialGoal[]>([]);
   const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false);
 
-  // Updated currentMonthSummary state to hold individual totals
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user?.id) return;
+      
+      setIsLoading(true);
+      try {
+        // Fetch recurring items
+        const { data: recurringData, error: recurringError } = await supabase
+          .from('recurring_items')
+          .select('*')
+          .eq('user_id', user.id);
+
+        if (recurringError) throw new Error(recurringError.message);
+
+        // Fetch debt accounts
+        const { data: debtData, error: debtError } = await supabase
+          .from('debt_accounts')
+          .select('*')
+          .eq('user_id', user.id);
+
+        if (debtError) throw new Error(debtError.message);
+
+        // Fetch budget categories
+        const { data: categoriesData, error: categoriesError } = await supabase
+          .from('budget_categories')
+          .select('*')
+          .eq('user_id', user.id);
+
+        if (categoriesError) throw new Error(categoriesError.message);
+
+        // Fetch financial goals
+        const { data: goalsData, error: goalsError } = await supabase
+          .from('financial_goals')
+          .select('*')
+          .eq('user_id', user.id);
+
+        if (goalsError) throw new Error(goalsError.message);
+
+        // Transform the data to match our types
+        const formattedRecurringItems = recurringData?.map(item => {
+          const recurringItem: RecurringItem = {
+            id: item.id,
+            name: item.name,
+            type: item.type,
+            amount: item.amount,
+            frequency: item.frequency,
+            startDate: item.start_date ? new Date(item.start_date) : null,
+            lastRenewalDate: item.last_renewal_date ? new Date(item.last_renewal_date) : null,
+            endDate: item.end_date ? new Date(item.end_date) : null,
+            semiMonthlyFirstPayDate: item.semi_monthly_first_pay_date ? new Date(item.semi_monthly_first_pay_date) : null,
+            semiMonthlySecondPayDate: item.semi_monthly_second_pay_date ? new Date(item.semi_monthly_second_pay_date) : null,
+            userId: item.user_id,
+            createdAt: new Date(item.created_at),
+            categoryId: item.category_id || null,
+          };
+          
+          // Only add notes if it exists
+          if (item.notes) {
+            recurringItem.notes = item.notes;
+          }
+          
+          return recurringItem;
+        }) || [];
+
+        const formattedDebtAccounts: DebtAccount[] = debtData?.map(debt => ({
+          id: debt.id,
+          name: debt.name,
+          type: debt.type,
+          balance: debt.balance,
+          apr: debt.apr,
+          minimumPayment: debt.minimum_payment,
+          paymentDayOfMonth: debt.payment_day_of_month,
+          paymentFrequency: debt.payment_frequency,
+          userId: debt.user_id,
+          createdAt: new Date(debt.created_at)
+        })) || [];
+
+        const formattedCategories: BudgetCategory[] = categoriesData?.map(category => ({
+          id: category.id,
+          name: category.name,
+          budgetedAmount: category.budgeted_amount,
+          userId: category.user_id,
+          createdAt: new Date(category.created_at)
+        })) || [];
+
+        const formattedGoals: FinancialGoal[] = goalsData?.map(goal => ({
+          id: goal.id,
+          name: goal.name,
+          targetAmount: goal.target_amount,
+          currentAmount: goal.current_amount,
+          targetDate: new Date(goal.target_date),
+          icon: goal.icon,
+          userId: goal.user_id,
+          createdAt: new Date(goal.created_at)
+        })) || [];
+
+        setRecurringItems(formattedRecurringItems);
+        setDebtAccounts(formattedDebtAccounts);
+        setVariableCategories(formattedCategories);
+        setGoals(formattedGoals);
+      } catch (error) {
+        console.error('Error fetching budget data:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load budget data.',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user?.id, toast]);
+
   const [currentMonthSummary, setCurrentMonthSummary] = useState({
     totalIncome: 0,
     totalActualFixedExpenses: 0, // 'fixed-expense' type recurring items
@@ -63,8 +156,6 @@ export function BudgetManager() {
     totalDebtPayments: 0,
     totalGoalContributions: 0,
   });
-
-  const [forecastData, setForecastData] = useState<MonthlyForecast[]>([]);
 
   const goalsWithContributions = useMemo((): FinancialGoalWithContribution[] => {
     const today = startOfDay(new Date());
@@ -96,7 +187,6 @@ export function BudgetManager() {
     }).sort((a,b) => new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime());
   }, [goals]);
 
-  // Calculate total monthly goal contributions for the *current month's* budget
   const totalCurrentMonthGoalContributions = useMemo(() => {
     return goalsWithContributions.reduce((sum, goal) => {
       if (goal.currentAmount < goal.targetAmount && goal.monthsRemaining > 0) {
@@ -106,7 +196,6 @@ export function BudgetManager() {
     }, 0);
   }, [goalsWithContributions]);
 
-  // Calculate summaries for the *current month*
   useEffect(() => {
     const today = new Date();
     const currentMonthStart = startOfMonth(today);
@@ -198,8 +287,8 @@ export function BudgetManager() {
     });
   }, [recurringItems, debtAccounts, totalCurrentMonthGoalContributions]);
 
+  const [forecastData, setForecastData] = useState<MonthlyForecast[]>([]);
 
-  // Generate 12-Month Forecast Data
   useEffect(() => {
     const currentYear = getYear(new Date());
     const newForecastData: MonthlyForecast[] = [];
@@ -314,7 +403,6 @@ export function BudgetManager() {
       const totalMonthSubscriptions = monthSubscriptionItems.reduce((sum, item) => sum + item.totalAmountInMonth, 0);
       const totalMonthDebtMinimumPayments = monthDebtPaymentItems.reduce((sum, item) => sum + item.totalAmountInMonth, 0);
 
-
       const forecastVariableExpenses: MonthlyForecastVariableExpense[] = variableCategories.map(vc => ({
         id: vc.id,
         name: vc.name,
@@ -369,20 +457,51 @@ export function BudgetManager() {
     setForecastData(newForecastData);
   }, [recurringItems, debtAccounts, variableCategories, goals, goalsWithContributions]);
 
-
   const totalBudgetedVariable = useMemo(() => {
     return variableCategories.reduce((sum, cat) => sum + cat.budgetedAmount, 0);
   }, [variableCategories]);
 
-  const handleAddVariableCategory = (categoryData: Omit<BudgetCategory, "id" | "userId" | "createdAt">) => {
-    const newCategory: BudgetCategory = {
-      ...categoryData,
-      id: `var-${Date.now()}`,
-      userId: "1",
-      createdAt: new Date(),
-    };
-    setVariableCategories(prev => [...prev, newCategory]);
-    toast({ title: "Budget Category Added", description: `"${newCategory.name}" added to your variable expenses.` });
+  const handleAddCategory = async (newCategory: Omit<BudgetCategory, "id" | "userId" | "createdAt">) => {
+    if (!user?.id) return;
+    
+    try {
+      // Save to Supabase
+      const { data, error } = await supabase
+        .from('budget_categories')
+        .insert({
+          name: newCategory.name,
+          budgeted_amount: newCategory.budgetedAmount,
+          user_id: user.id
+        })
+        .select()
+        .single();
+        
+      if (error) throw error;
+      
+      // Add to local state
+      const category: BudgetCategory = {
+        id: data.id,
+        name: data.name,
+        budgetedAmount: data.budgeted_amount,
+        userId: data.user_id,
+        createdAt: new Date(data.created_at),
+      };
+      
+      setVariableCategories([...variableCategories, category]);
+      setIsAddCategoryDialogOpen(false);
+      
+      toast({
+        title: "Category Added",
+        description: `"${category.name}" has been added to your budget.`,
+      });
+    } catch (error) {
+      console.error('Error adding budget category:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to add budget category.',
+        variant: 'destructive'
+      });
+    }
   };
 
   const handleUpdateVariableCategoryAmount = (categoryId: string, newAmount: number) => {
@@ -454,9 +573,19 @@ export function BudgetManager() {
     updateForecastMonth(monthIndex, { debtPaymentItems: updatedDebtPayments });
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-muted-foreground">Loading budget data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <Tabs defaultValue="currentMonth" className="w-full">
         <TabsList className="grid w-full grid-cols-2 md:w-[400px] mb-6">
           <TabsTrigger value="currentMonth">Current Month Budget</TabsTrigger>
@@ -491,7 +620,7 @@ export function BudgetManager() {
       <AddBudgetCategoryDialog
         isOpen={isAddCategoryDialogOpen}
         onOpenChange={setIsAddCategoryDialogOpen}
-        onCategoryAdded={handleAddVariableCategory}
+        onCategoryAdded={handleAddCategory}
       >
         <div style={{ display: 'none' }} />
       </AddBudgetCategoryDialog>

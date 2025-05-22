@@ -37,7 +37,7 @@ import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "Debt name must be at least 2 characters." }).max(50),
-  type: z.enum(debtAccountTypes, { required_error: "Please select a debt type." }),
+  type: z.enum(debtAccountTypes as [DebtAccountType, ...DebtAccountType[]], { required_error: "Please select a debt type." }),
   balance: z.preprocess(
     (val) => (typeof val === 'string' ? parseFloat(val.replace(/[^0-9.-]+/g,"")) : val),
     z.number({ invalid_type_error: "Balance must be a number." }).positive({ message: "Balance must be positive." })
@@ -58,7 +58,7 @@ const formSchema = z.object({
     },
     z.number({required_error: "Payment day is required."}).int().min(1, {message: "Day must be between 1 and 31."}).max(31, {message: "Day must be between 1 and 31."})
   ),
-  paymentFrequency: z.enum(paymentFrequencies, { required_error: "Please select a payment frequency." }),
+  paymentFrequency: z.enum(paymentFrequencies as [PaymentFrequency, ...PaymentFrequency[]], { required_error: "Please select a payment frequency." }),
 });
 
 type AddDebtFormValues = z.infer<typeof formSchema>;
@@ -67,51 +67,104 @@ interface AddDebtDialogProps {
   children: ReactNode; // Trigger button
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onDebtAdded: (debtData: Omit<DebtAccount, "id" | "userId" | "createdAt">) => void;
+  onDebtAdded: (debtData: Omit<DebtAccount, "id" | "userId" | "createdAt">, keepOpen?: boolean) => void;
+  initialValues?: DebtAccount; // Add support for initialValues for editing
+  isEditing?: boolean;
+  onDebtEdited?: (debtId: string, debtData: Omit<DebtAccount, "id" | "userId" | "createdAt">) => void;
 }
 
-export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded }: AddDebtDialogProps) {
+export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded, initialValues, isEditing = false, onDebtEdited }: AddDebtDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [formResetKey, setFormResetKey] = useState(0); // Add a key to force re-render
+
+  // Define default values outside to reuse them
+  const defaultValues = {
+    name: initialValues?.name || "",
+    type: initialValues?.type || (undefined as unknown as DebtAccountType),
+    balance: initialValues?.balance || undefined,
+    apr: initialValues?.apr || undefined,
+    minimumPayment: initialValues?.minimumPayment || undefined,
+    paymentDayOfMonth: initialValues?.paymentDayOfMonth || undefined, // Keep undefined to allow placeholder to show
+    paymentFrequency: initialValues?.paymentFrequency || (undefined as unknown as PaymentFrequency), // Keep undefined to allow placeholder to show
+  };
 
   const form = useForm<AddDebtFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: "",
-      type: undefined,
-      balance: undefined,
-      apr: undefined,
-      minimumPayment: undefined,
-      paymentDayOfMonth: undefined, // Keep undefined to allow placeholder to show
-      paymentFrequency: undefined, // Keep undefined to allow placeholder to show
-    },
+    defaultValues,
   });
 
-  async function onSubmit(values: AddDebtFormValues) {
-    setIsLoading(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 700));
+  // State to track if we should keep the dialog open after submission
+  const [keepOpen, setKeepOpen] = useState(false);
+
+  // Function to reset the form to its initial state
+  const resetFormFields = () => {
+    // Clear all form fields and errors
+    form.clearErrors();
     
-    onDebtAdded(values); // Values now fully match the required structure
-    form.reset();
+    // Reset to completely fresh state
+    form.reset(defaultValues, {
+      keepDefaultValues: false,
+      keepErrors: false,
+      keepDirty: false,
+      keepIsSubmitted: false,
+      keepTouched: false,
+      keepIsValid: false,
+      keepSubmitCount: false
+    });
+    
+    // Force re-render with a new key
+    setFormResetKey(prev => prev + 1);
+  };
+
+  async function onSubmit(values: AddDebtFormValues, keepOpenSubmit: boolean = false) {
+    setIsLoading(true);
+    
+    // Ensure the values are properly typed before passing to onDebtAdded
+    const debtData: Omit<DebtAccount, "id" | "userId" | "createdAt"> = {
+      name: values.name,
+      type: values.type,
+      balance: values.balance,
+      apr: values.apr,
+      minimumPayment: values.minimumPayment,
+      paymentDayOfMonth: values.paymentDayOfMonth,
+      paymentFrequency: values.paymentFrequency
+    };
+    
+    if (isEditing && initialValues && onDebtEdited) {
+      // If editing, call the edit function
+      onDebtEdited(initialValues.id, debtData);
+      onOpenChange(false);
+    } else {
+      // If adding new, call the add function
+      onDebtAdded(debtData, keepOpenSubmit); // Pass the keepOpen flag to the parent component
+      
+      // If not keeping open, close the dialog
+      if (!keepOpenSubmit) {
+        onOpenChange(false);
+      } else {
+        // For "Save & Add Another", just reset the form
+        resetFormFields();
+      }
+    }
+    
     setIsLoading(false);
-    onOpenChange(false); // Close dialog on success
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open) form.reset();
+      if (!open) resetFormFields();
       onOpenChange(open);
     }}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>Add New Debt Account</DialogTitle>
+          <DialogTitle>{isEditing ? 'Edit Debt Account' : 'Add New Debt Account'}</DialogTitle>
           <DialogDescription>
-            Enter the details for your debt account (e.g., credit card, loan).
+            {isEditing ? 'Update the details for your debt account.' : 'Enter the details for your debt account (e.g., credit card, loan).'}
           </DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+        <Form {...form} key={`debt-form-${formResetKey}`}>
+          <form onSubmit={form.handleSubmit((values) => onSubmit(values, false))} className="space-y-4 py-4">
             <FormField
               control={form.control}
               name="name"
@@ -225,13 +278,47 @@ export function AddDebtDialog({ children, isOpen, onOpenChange, onDebtAdded }: A
                 </FormItem>
               )}
             />
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? <Loader2 className="animate-spin" /> : "Add Debt Account"}
-              </Button>
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0">
+              <div className="flex-1 flex justify-start">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => onOpenChange(false)} 
+                  disabled={isLoading}
+                  className="w-full sm:w-auto"
+                >
+                  Cancel
+                </Button>
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto">
+                {!isEditing && (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    disabled={isLoading}
+                    className="flex-1"
+                    onClick={() => {
+                      const values = form.getValues();
+                      if (form.formState.isValid) {
+                        onSubmit(values, true);
+                      } else {
+                        form.handleSubmit((values) => onSubmit(values, true))();
+                      }
+                    }}
+                  >
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Save & Add Another
+                  </Button>
+                )}
+                <Button 
+                  type="submit" 
+                  disabled={isLoading}
+                  className="flex-1"
+                >
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {isEditing ? 'Update' : 'Save'}
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </Form>

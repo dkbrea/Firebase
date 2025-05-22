@@ -1,7 +1,6 @@
 "use client";
 
-import { TrendingUp, CalendarDays } from "lucide-react";
-// Added Area to imports, kept Bar and BarChart in case they are used elsewhere or for future refactoring.
+import { TrendingUp, CalendarDays, ArrowDownUp } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import {
   Card,
@@ -15,85 +14,347 @@ import {
   ChartContainer,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import type { ExpenseByCategory } from "@/types";
+import { supabase } from "@/lib/supabase";
+import { formatCurrency } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
+import type { Transaction, ExpenseByCategory } from "@/types";
 import { useEffect, useState } from "react";
 
-const mockChartData = [
-  { date: "2023-10-01", amount: 1500 },
-  { date: "2023-10-05", amount: 1700 },
-  { date: "2023-10-10", amount: 1900 },
-  { date: "2023-10-15", amount: 2100 },
-  { date: "2023-10-20", amount: 2000 },
-  { date: "2023-10-25", amount: 2300 },
-  { date: "2023-10-30", amount: 2500 },
-];
+// Helper function to group transactions by date
+const groupTransactionsByDate = (transactions: Transaction[]) => {
+  const groupedByDate: Record<string, { income: number; expense: number }> = {};
+  
+  transactions.forEach(transaction => {
+    const dateStr = transaction.date.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    if (!groupedByDate[dateStr]) {
+      groupedByDate[dateStr] = { income: 0, expense: 0 };
+    }
+    
+    if (transaction.type === 'income') {
+      groupedByDate[dateStr].income += transaction.amount;
+    } else if (transaction.type === 'expense') {
+      groupedByDate[dateStr].expense += transaction.amount;
+    }
+  });
+  
+  return groupedByDate;
+};
+
+// Helper function to create chart data points from grouped transactions
+const createChartData = (groupedTransactions: Record<string, { income: number; expense: number }>, period: 'week' | 'month' | 'year' = 'month') => {
+  const dates = Object.keys(groupedTransactions).sort();
+  
+  // Handle empty data case
+  if (dates.length === 0) {
+    // Generate some empty data points for the current period
+    const today = new Date();
+    const chartData = [];
+    
+    if (period === 'week') {
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        chartData.push({ date: dateStr, income: 0, expense: 0 });
+      }
+    } else if (period === 'month') {
+      for (let i = 0; i < 30; i += 5) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        chartData.push({ date: dateStr, income: 0, expense: 0 });
+      }
+    } else { // year
+      for (let i = 0; i < 12; i++) {
+        const date = new Date(today);
+        date.setMonth(date.getMonth() - i);
+        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
+        chartData.push({ date: dateStr, income: 0, expense: 0 });
+      }
+    }
+    
+    return chartData;
+  }
+  
+  // When we have actual data
+  return dates.map(date => ({
+    date,
+    income: groupedTransactions[date].income,
+    expense: groupedTransactions[date].expense,
+    // For display in the tooltip
+    incomeFormatted: formatCurrency(groupedTransactions[date].income),
+    expenseFormatted: formatCurrency(groupedTransactions[date].expense)
+  }));
+};
 
 const chartConfig = {
-  amount: {
-    label: "Amount ($)",
-    color: "hsl(var(--primary))", // This color might be for the legend or tooltip, not directly the area stroke if using gradient
+  income: {
+    label: "Income",
+    color: "hsl(143, 85%, 56%)", // Green for income
+  },
+  expense: {
+    label: "Expense",
+    color: "hsl(346, 84%, 61%)", // Red for expense
   },
 };
 
 export function ExpenseChart() {
-  const [isClient, setIsClient] = useState(false);
+  const { user } = useAuth();
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [totalIncome, setTotalIncome] = useState(0);
+  const [totalExpense, setTotalExpense] = useState(0);
+  const [viewPeriod, setViewPeriod] = useState<'week' | 'month' | 'year'>('month');
 
   useEffect(() => {
-    setIsClient(true);
-  }, []);
+    const fetchTransactionData = async () => {
+      if (!user?.id) {
+        // Handle case when user is not logged in yet
+        setIsLoading(false);
+        return;
+      }
+      
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        // Get date range based on selected period
+        const today = new Date();
+        let startDate: Date;
+        
+        if (viewPeriod === 'week') {
+          startDate = new Date(today);
+          startDate.setDate(today.getDate() - 7);
+        } else if (viewPeriod === 'month') {
+          startDate = new Date(today);
+          startDate.setMonth(today.getMonth() - 1);
+        } else { // year
+          startDate = new Date(today);
+          startDate.setFullYear(today.getFullYear() - 1);
+        }
+        
+        // Fetch transactions within date range
+        const { data, error } = await supabase
+          .from('transactions')
+          .select('*')
+          .eq('user_id', user.id)
+          .gte('date', startDate.toISOString())
+          .lte('date', today.toISOString())
+          .order('date', { ascending: true });
+          
+        if (error) throw error;
+        
+        // Process the data
+        if (data && data.length > 0) {
+          // Convert Supabase date strings to Date objects
+          const transactions = data.map(tx => ({
+            ...tx,
+            date: new Date(tx.date),
+            amount: tx.amount,
+            type: tx.type
+          }));
+          
+          // Group by date
+          const groupedTransactions = groupTransactionsByDate(transactions);
+          
+          // Create chart data
+          const chartData = createChartData(groupedTransactions, viewPeriod);
+          setChartData(chartData);
+          
+          // Calculate totals
+          const incomeTotal = transactions
+            .filter(tx => tx.type === 'income')
+            .reduce((sum, tx) => sum + tx.amount, 0);
+            
+          const expenseTotal = transactions
+            .filter(tx => tx.type === 'expense')
+            .reduce((sum, tx) => sum + tx.amount, 0);
+            
+          setTotalIncome(incomeTotal);
+          setTotalExpense(expenseTotal);
+        } else {
+          // No data found - empty placeholders
+          setChartData(createChartData({}, viewPeriod));
+          setTotalIncome(0);
+          setTotalExpense(0);
+        }
+      } catch (err: any) {
+        console.error("Error fetching transaction data:", err);
+        setError(err.message || "Failed to load transaction data");
+        setChartData([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchTransactionData();
+  }, [user?.id, viewPeriod]);
 
-  if (!isClient) {
+  const formatXAxisTick = (tickItem: string) => {
+    const date = new Date(tickItem);
+    if (viewPeriod === 'week') {
+      return new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(date);
+    } else if (viewPeriod === 'month') {
+      return new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short' }).format(date);
+    } else { // year
+      return new Intl.DateTimeFormat('en-US', { month: 'short' }).format(date);
+    }
+  };
+
+  // Only show loading if actually loading data
+  if (isLoading) {
     return (
-      <Card>
+      <Card className="col-span-2 shadow-lg">
         <CardHeader>
-          <CardTitle>Expense Breakdown</CardTitle>
-          <CardDescription>Monthly spending by category</CardDescription>
+          <CardTitle>Financial Overview</CardTitle>
+          <CardDescription>Income and expenses over time</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-[300px] w-full flex items-center justify-center text-muted-foreground">
-            Loading chart...
+            Loading chart data...
           </div>
         </CardContent>
       </Card>
     );
   }
   
+  if (error) {
+    return (
+      <Card className="col-span-2 shadow-lg">
+        <CardHeader>
+          <CardTitle>Financial Overview</CardTitle>
+          <CardDescription>Income and expenses over time</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[300px] w-full flex items-center justify-center text-red-500">
+            Error loading chart: {error}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  // Check if there's actual data to display
+  const hasData = chartData.some(point => point.income > 0 || point.expense > 0);
+
   return (
     <Card className="col-span-2 shadow-lg"> 
-      <CardHeader>
-        <CardTitle>Statistics Overview</CardTitle>
-        <CardDescription>Income and expenses over time</CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <div>
+          <CardTitle>Financial Overview</CardTitle>
+          <CardDescription>Income and expenses over time</CardDescription>
+        </div>
+        <div className="flex space-x-2">
+          <button 
+            onClick={() => setViewPeriod('week')} 
+            className={`px-3 py-1 text-xs rounded-md ${viewPeriod === 'week' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+          >
+            Week
+          </button>
+          <button 
+            onClick={() => setViewPeriod('month')} 
+            className={`px-3 py-1 text-xs rounded-md ${viewPeriod === 'month' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+          >
+            Month
+          </button>
+          <button 
+            onClick={() => setViewPeriod('year')} 
+            className={`px-3 py-1 text-xs rounded-md ${viewPeriod === 'year' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+          >
+            Year
+          </button>
+        </div>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} className="h-[300px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={mockChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false}/>
-              <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
-              <YAxis />
-              <Tooltip
-                content={<ChartTooltipContent indicator="line" />}
-              />
-              <Legend />
-              {/* Changed Bar to Area and configured to use the gradient */}
-              <Area type="monotone" dataKey="amount" stroke="#8884d8" fillOpacity={1} fill="url(#colorAmount)" />
-            </AreaChart> {/* Corrected closing tag */}
-          </ResponsiveContainer>
-        </ChartContainer>
+        {hasData ? (
+          <ChartContainer config={chartConfig} className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(143, 85%, 56%)" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="hsl(143, 85%, 56%)" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(346, 84%, 61%)" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="hsl(346, 84%, 61%)" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false}/>
+                <XAxis 
+                  dataKey="date" 
+                  tickLine={false} 
+                  axisLine={false} 
+                  tickMargin={8}
+                  tickFormatter={formatXAxisTick}
+                />
+                <YAxis />
+                <Tooltip
+                  content={<ChartTooltipContent indicator="line" />}
+                  formatter={(value, name) => {
+                    if (name === 'income') return [`${formatCurrency(value as number)}`, 'Income'];
+                    if (name === 'expense') return [`${formatCurrency(value as number)}`, 'Expense'];
+                    return [value, name];
+                  }}
+                />
+                <Legend />
+                <Area 
+                  type="monotone" 
+                  dataKey="income" 
+                  name="Income"
+                  stroke="hsl(143, 85%, 56%)" 
+                  fillOpacity={1} 
+                  fill="url(#colorIncome)" 
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="expense" 
+                  name="Expense"
+                  stroke="hsl(346, 84%, 61%)" 
+                  fillOpacity={1} 
+                  fill="url(#colorExpense)" 
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+        ) : (
+          <div className="h-[300px] w-full flex flex-col items-center justify-center text-muted-foreground">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="54"
+              height="54"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="mb-4 text-muted-foreground/50"
+            >
+              <path d="M3 3v18h18" />
+              <path d="m19 9-5 5-4-4-3 3" />
+            </svg>
+            <p className="text-center mb-2">No transaction data available</p>
+            <p className="text-center text-sm">Add transactions to see your financial trends</p>
+          </div>
+        )}
       </CardContent>
-      <CardFooter className="flex-col items-start gap-2 text-sm">
-        <div className="flex gap-2 font-medium leading-none">
-          Total amount shown: ${mockChartData.reduce((sum, item) => sum + item.amount, 0).toFixed(2)}
-          <TrendingUp className="h-4 w-4" />
+      <CardFooter className="flex justify-between items-center">
+        <div className="flex-col items-start gap-1 text-sm">
+          <div className="flex gap-2 font-medium leading-none items-center">
+            <span className="w-3 h-3 rounded-full bg-green-500"></span>
+            Income: {formatCurrency(totalIncome)}
+          </div>
+          <div className="flex gap-2 font-medium leading-none items-center mt-1">
+            <span className="w-3 h-3 rounded-full bg-red-500"></span>
+            Expenses: {formatCurrency(totalExpense)}
+          </div>
         </div>
-        <div className="leading-none text-muted-foreground">
-          Showing mock data for demonstration.
+        <div className="flex gap-2 items-center">
+          <span className="text-sm font-medium">Net: {formatCurrency(totalIncome - totalExpense)}</span>
+          <ArrowDownUp className="h-4 w-4" />
         </div>
       </CardFooter>
     </Card>

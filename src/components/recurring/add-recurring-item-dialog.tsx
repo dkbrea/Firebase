@@ -98,40 +98,62 @@ const refinedFormSchema = formSchemaBase.superRefine((data, ctx) => {
 type AddRecurringItemFormValues = z.infer<typeof refinedFormSchema>;
 
 interface AddRecurringItemDialogProps {
-  children: ReactNode; // Trigger button
+  children: React.ReactNode;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onRecurringItemAdded: (itemData: Omit<RecurringItem, "id" | "userId" | "createdAt">) => void;
+  onRecurringItemAdded: (item: Omit<RecurringItem, "id" | "userId" | "createdAt">, keepOpen?: boolean) => void;
+  initialType?: RecurringItem['type'];
+  initialValues?: RecurringItem; // Add support for initialValues for editing
 }
 
-export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecurringItemAdded }: AddRecurringItemDialogProps) {
+export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecurringItemAdded, initialType, initialValues }: AddRecurringItemDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false); // For Next Pay/Due Date
   const [isLastRenewalDatePickerOpen, setIsLastRenewalDatePickerOpen] = useState(false);
   const [isSemiMonthlyFirstDatePickerOpen, setIsSemiMonthlyFirstDatePickerOpen] = useState(false);
   const [isSemiMonthlySecondDatePickerOpen, setIsSemiMonthlySecondDatePickerOpen] = useState(false);
   const [isEndDatePickerOpen, setIsEndDatePickerOpen] = useState(false);
+  const [formResetKey, setFormResetKey] = useState(0); // Add a key to force re-render
+
+  // Define default values outside to reuse them
+  const defaultValues = {
+    name: initialValues?.name || "", 
+    type: initialValues?.type || initialType || undefined, 
+    amount: initialValues?.amount || 0, 
+    frequency: initialValues?.frequency || undefined,
+    startDate: initialValues?.startDate ? startOfDay(new Date(initialValues.startDate)) : startOfDay(new Date()), 
+    lastRenewalDate: initialValues?.lastRenewalDate ? startOfDay(new Date(initialValues.lastRenewalDate)) : null,
+    semiMonthlyFirstPayDate: initialValues?.semiMonthlyFirstPayDate ? startOfDay(new Date(initialValues.semiMonthlyFirstPayDate)) : null, 
+    semiMonthlySecondPayDate: initialValues?.semiMonthlySecondPayDate ? startOfDay(new Date(initialValues.semiMonthlySecondPayDate)) : null,
+    endDate: initialValues?.endDate ? startOfDay(new Date(initialValues.endDate)) : null, 
+    notes: initialValues?.notes || "", 
+    categoryId: initialValues?.categoryId || null,
+  };
 
   const form = useForm<AddRecurringItemFormValues>({
     resolver: zodResolver(refinedFormSchema),
-    defaultValues: {
-      name: "", type: undefined, amount: undefined, frequency: undefined,
-      startDate: startOfDay(new Date()), lastRenewalDate: null,
-      semiMonthlyFirstPayDate: null, semiMonthlySecondPayDate: null,
-      endDate: null, notes: "", categoryId: null,
-    },
+    defaultValues,
   });
 
   const selectedType = form.watch("type");
   const selectedFrequency = form.watch("frequency");
 
   const resetFormFields = () => {
-    form.reset({
-      name: "", type: undefined, amount: undefined, frequency: undefined,
-      startDate: startOfDay(new Date()), lastRenewalDate: null,
-      semiMonthlyFirstPayDate: null, semiMonthlySecondPayDate: null,
-      endDate: null, notes: "", categoryId: null,
+    // Clear all form fields and errors
+    form.clearErrors();
+    
+    // Reset to completely fresh state, preserving only the initialType if provided
+    form.reset(defaultValues, {
+      keepDefaultValues: false,
+      keepErrors: false,
+      keepDirty: false,
+      keepIsSubmitted: false,
+      keepTouched: false,
+      keepIsValid: false,
+      keepSubmitCount: false
     });
+    
+    // Reset all date picker states
     setIsStartDatePickerOpen(false);
     setIsLastRenewalDatePickerOpen(false);
     setIsSemiMonthlyFirstDatePickerOpen(false);
@@ -185,7 +207,7 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
   }, [selectedType, selectedFrequency, form]);
 
 
-  async function onSubmit(values: AddRecurringItemFormValues) {
+  async function onSubmit(values: AddRecurringItemFormValues, keepOpen: boolean = false) {
     setIsLoading(true);
     await new Promise(resolve => setTimeout(resolve, 700));
     
@@ -216,10 +238,25 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
         itemData.semiMonthlySecondPayDate = null;
     }
     
-    onRecurringItemAdded(itemData as Omit<RecurringItem, "id" | "userId" | "createdAt">);
-    resetFormFields();
+    // Call the callback with the item data and keepOpen flag
+    onRecurringItemAdded(itemData as Omit<RecurringItem, "id" | "userId" | "createdAt">, keepOpen);
+    
+    // If not keeping open, close the dialog
+    if (!keepOpen) {
+      onOpenChange(false);
+    } else {
+      // For "Save & Add Another", just reset the form
+      form.reset(defaultValues);
+      
+      // Reset all date picker states
+      setIsStartDatePickerOpen(false);
+      setIsLastRenewalDatePickerOpen(false);
+      setIsSemiMonthlyFirstDatePickerOpen(false);
+      setIsSemiMonthlySecondDatePickerOpen(false);
+      setIsEndDatePickerOpen(false);
+    }
+    
     setIsLoading(false);
-    onOpenChange(false);
   }
   
   const getPrimaryDateLabel = () => {
@@ -245,13 +282,13 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>Add New Recurring Item</DialogTitle>
+          <DialogTitle>{initialValues ? 'Edit Recurring Item' : 'Add New Recurring Item'}</DialogTitle>
           <DialogDescription>
             Set up your regular income, subscriptions, or fixed expenses.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-2">
+          <form onSubmit={form.handleSubmit((values) => onSubmit(values, false))} className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-2">
             <FormField
               control={form.control}
               name="name"
@@ -324,7 +361,13 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                 <FormItem>
                   <FormLabel>Amount ($) *</FormLabel>
                   <FormControl>
-                    <Input type="number" step="0.01" placeholder="e.g., 15.99 or 2500" {...field} />
+                    <Input 
+                      type="number" 
+                      step="0.01" 
+                      placeholder="e.g., 15.99 or 2500" 
+                      {...field} 
+                      value={field.value || 0} 
+                    />
                   </FormControl>
                   <FormDesc>Enter a positive value. 'Type' determines if it's income or expense.</FormDesc>
                   <FormMessage />
@@ -540,13 +583,37 @@ export function AddRecurringItemDialog({ children, isOpen, onOpenChange, onRecur
                 </FormItem>
               )}
             />
-            <DialogFooter className="pt-4">
+            <DialogFooter className="pt-4 flex flex-col sm:flex-row gap-2 sm:gap-0">
               <Button type="button" variant="outline" onClick={() => { onOpenChange(false); resetFormFields();}} disabled={isLoading}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? <Loader2 className="animate-spin" /> : "Add Item"}
-              </Button>
+              <div className="flex gap-2">
+                {!initialValues && (
+                  <Button 
+                    type="button" 
+                    variant="secondary" 
+                    disabled={isLoading}
+                    onClick={() => {
+                      form.handleSubmit(values => {
+                        onSubmit(values, true);
+                        // Force complete form recreation
+                        setFormResetKey(prev => prev + 1);
+                      })();
+                    }}
+                  >
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Save & Add Another
+                  </Button>
+                )}
+                <Button 
+                  type="button" 
+                  disabled={isLoading}
+                  onClick={() => form.handleSubmit(values => onSubmit(values, false))()}
+                >
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {initialValues ? 'Save Changes' : 'Save'}
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </Form>

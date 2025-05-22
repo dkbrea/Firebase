@@ -1,12 +1,13 @@
-
 "use client";
 
-import type { RecurringItem, DebtAccount, UnifiedRecurringListItem, RecurringFrequency, PaymentFrequency, PredefinedRecurringCategoryValue } from "@/types";
+import type { RecurringItem, DebtAccount, UnifiedRecurringListItem } from "@/types";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, List, CalendarDays } from "lucide-react";
+import { PlusCircle, List, CalendarDays, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/auth-context";
+import { supabase } from "@/lib/supabase";
 import { AddRecurringItemDialog } from "./add-recurring-item-dialog";
 import { RecurringList } from "./recurring-list";
 import { RecurringCalendarView } from "./recurring-calendar-view";
@@ -14,23 +15,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RecurringSummaryCards } from "./recurring-summary-cards";
 import { 
   addDays, addWeeks, addMonths, addQuarters, addYears, 
-  isPast, isSameDay, setDate, getDate, startOfDay, 
-  startOfMonth, endOfMonth, isWithinInterval, getDaysInMonth 
+  isSameDay, setDate, getDate, startOfDay, 
+  startOfMonth, endOfMonth, isWithinInterval
 } from "date-fns";
-
-const mockRecurringItems: RecurringItem[] = [
-  { id: "rec1", name: "Salary", type: "income", amount: 3000, frequency: "monthly", startDate: new Date(2024, 0, 15), userId: "1", createdAt: new Date() },
-  { id: "rec2", name: "Netflix Subscription", type: "subscription", amount: 15.99, frequency: "monthly", lastRenewalDate: new Date(2024, 6, 5), userId: "1", createdAt: new Date(), categoryId: "subscriptions-media" },
-  { id: "rec3", name: "Rent", type: "fixed-expense", amount: 1200, frequency: "monthly", startDate: new Date(2024, 0, 1), userId: "1", createdAt: new Date(), categoryId: "housing" },
-  { id: "rec4", name: "Gym Membership", type: "subscription", amount: 40, frequency: "monthly", lastRenewalDate: new Date(2024, 5, 10),endDate: new Date(2024, 11, 10), userId: "1", createdAt: new Date(), categoryId: "health-wellness" }, // Ended gym membership
-  { id: "rec5", name: "Freelance Project A", type: "income", amount: 500, frequency: "weekly", startDate: new Date(2024, 6, 1), userId: "1", createdAt: new Date(), endDate: new Date(2024, 8, 30) },
-  { id: "rec6", name: "Military Pay", type: "income", amount: 2200, frequency: "semi-monthly", semiMonthlyFirstPayDate: new Date(2024, 6, 15), semiMonthlySecondPayDate: new Date(2024, 7, 1), userId: "1", createdAt: new Date() },
-];
-
-const mockDebtAccounts: DebtAccount[] = [
-  { id: "debt1", name: "Visa Gold", type: "credit-card", balance: 5250.75, apr: 18.9, minimumPayment: 150, paymentDayOfMonth: 15, paymentFrequency: "monthly", userId: "1", createdAt: new Date(2023, 10, 1) },
-  { id: "debt2", name: "Student Loan - Navient", type: "student-loan", balance: 22500.00, apr: 6.8, minimumPayment: 280, paymentDayOfMonth: 1, paymentFrequency: "monthly", userId: "1", createdAt: new Date(2023, 8, 1) },
-];
 
 interface MonthlySummary {
   income: number;
@@ -48,14 +35,13 @@ const calculateNextRecurringItemOccurrence = (item: RecurringItem): Date => {
     return itemEndDate; 
   }
   
-  let baseDate: Date | null = null;
   let nextOccurrence: Date;
 
   if (item.type === 'subscription') {
-    if (!item.lastRenewalDate) return itemEndDate || today; // Should not happen if validation is correct
-    baseDate = startOfDay(new Date(item.lastRenewalDate));
+    if (!item.lastRenewalDate) return itemEndDate || today;
+    const baseDate = startOfDay(new Date(item.lastRenewalDate));
     nextOccurrence = new Date(baseDate.getTime()); 
-     // Start from the day *after* last renewal to find next one
+    
     do {
       switch (item.frequency) {
         case "daily": nextOccurrence = addDays(nextOccurrence, 1); break;
@@ -64,7 +50,7 @@ const calculateNextRecurringItemOccurrence = (item: RecurringItem): Date => {
         case "monthly": nextOccurrence = addMonths(nextOccurrence, 1); break;
         case "quarterly": nextOccurrence = addQuarters(nextOccurrence, 1); break;
         case "yearly": nextOccurrence = addYears(nextOccurrence, 1); break;
-        default: return itemEndDate || today; // Should not happen
+        default: return itemEndDate || today;
       }
       if (itemEndDate && nextOccurrence > itemEndDate) return itemEndDate;
     } while (nextOccurrence < today);
@@ -76,22 +62,17 @@ const calculateNextRecurringItemOccurrence = (item: RecurringItem): Date => {
     if (date1 && (!itemEndDate || date1 <= itemEndDate) && date1 >= today) upcomingDates.push(date1);
     if (date2 && (!itemEndDate || date2 <= itemEndDate) && date2 >= today) upcomingDates.push(date2);
     
-    // If both specified dates are in the past, consider it ended relative to those specific dates
-    // unless there's a general endDate that dictates otherwise.
-    // For next occurrence, pick the earliest future one. If none, return the later of the two (or endDate).
     if (upcomingDates.length > 0) {
       nextOccurrence = upcomingDates.sort((a,b) => a.getTime() - b.getTime())[0];
     } else { 
-      // Both specified semi-monthly dates are in the past or beyond any item-specific end date.
-      // If an end date is set and is earlier than the past semi-monthly dates, that end date is the "next" (final) occurrence.
-      // Otherwise, use the later of the two semi-monthly dates as the effective "last" occurrence.
       const lastSemiMonthlyDate = date2 && date1 ? (date2 > date1 ? date2 : date1) : (date2 || date1 || today);
       return itemEndDate && itemEndDate < lastSemiMonthlyDate ? itemEndDate : lastSemiMonthlyDate;
     }
-  } else { // Standard income or fixed-expense (not semi-monthly)
-    if (!item.startDate) return itemEndDate || today; // Should not happen if validation is correct
-    baseDate = startOfDay(new Date(item.startDate));
+  } else {
+    if (!item.startDate) return itemEndDate || today;
+    const baseDate = startOfDay(new Date(item.startDate));
     nextOccurrence = new Date(baseDate.getTime());
+    
     while (nextOccurrence < today) {
       if (itemEndDate && nextOccurrence >= itemEndDate) return itemEndDate;
       switch (item.frequency) {
@@ -101,7 +82,7 @@ const calculateNextRecurringItemOccurrence = (item: RecurringItem): Date => {
         case "monthly": nextOccurrence = addMonths(nextOccurrence, 1); break;
         case "quarterly": nextOccurrence = addQuarters(nextOccurrence, 1); break;
         case "yearly": nextOccurrence = addYears(nextOccurrence, 1); break;
-        default: return nextOccurrence; // Should not happen
+        default: return nextOccurrence;
       }
     }
   }
@@ -111,54 +92,133 @@ const calculateNextRecurringItemOccurrence = (item: RecurringItem): Date => {
 };
 
 const calculateNextDebtOccurrence = (debt: DebtAccount): Date => {
-    const today = startOfDay(new Date());
-    const debtCreatedAt = startOfDay(new Date(debt.createdAt));
-    let currentDate = setDate(today, debt.paymentDayOfMonth);
+  const today = startOfDay(new Date());
+  const debtCreatedAt = startOfDay(new Date(debt.createdAt));
+  let currentDate = setDate(today, debt.paymentDayOfMonth);
 
-    if (currentDate < today) { 
-        currentDate = addMonths(currentDate, 1);
+  if (currentDate < today) { 
+    currentDate = addMonths(currentDate, 1);
+  }
+  
+  if (currentDate < debtCreatedAt) {
+    currentDate = setDate(debtCreatedAt, debt.paymentDayOfMonth);
+    if (currentDate < debtCreatedAt) { 
+      currentDate = addMonths(currentDate, 1);
     }
-    
-    if (currentDate < debtCreatedAt) {
-         currentDate = setDate(debtCreatedAt, debt.paymentDayOfMonth);
-         if (currentDate < debtCreatedAt) { 
-            currentDate = addMonths(currentDate, 1);
-         }
-    }
+  }
 
-    let nextDate = startOfDay(new Date(currentDate));
-    
-    if (debt.paymentFrequency !== 'monthly') {
-        let checkDate = setDate(debtCreatedAt, debt.paymentDayOfMonth);
-        if (checkDate < debtCreatedAt) checkDate = addMonths(checkDate, 1);
+  let nextDate = startOfDay(new Date(currentDate));
+  
+  if (debt.paymentFrequency !== 'monthly') {
+    let checkDate = setDate(debtCreatedAt, debt.paymentDayOfMonth);
+    if (checkDate < debtCreatedAt) checkDate = addMonths(checkDate, 1);
 
-        while(checkDate < today) {
-            switch (debt.paymentFrequency) {
-                case "bi-weekly": checkDate = addWeeks(checkDate, 2); break;
-                case "weekly": checkDate = addWeeks(checkDate, 1); break;
-                case "annually": checkDate = addYears(checkDate, 1); break;
-                default: checkDate = addMonths(checkDate, 1); break; 
-            }
-        }
-        nextDate = checkDate;
+    while(checkDate < today) {
+      switch (debt.paymentFrequency) {
+        case "bi-weekly": checkDate = addWeeks(checkDate, 2); break;
+        case "weekly": checkDate = addWeeks(checkDate, 1); break;
+        case "annually": checkDate = addYears(checkDate, 1); break;
+        default: checkDate = addMonths(checkDate, 1); break; 
+      }
     }
-    
-    return nextDate;
+    nextDate = checkDate;
+  }
+  
+  return nextDate;
 };
 
-
 export function RecurringManager() {
-  const [recurringItems, setRecurringItems] = useState<RecurringItem[]>(mockRecurringItems);
-  const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>(mockDebtAccounts);
+  const [recurringItems, setRecurringItems] = useState<RecurringItem[]>([]);
+  const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>([]);
   const [unifiedList, setUnifiedList] = useState<UnifiedRecurringListItem[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [itemToEdit, setItemToEdit] = useState<RecurringItem | null>(null);
+  const [dialogKey, setDialogKey] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { user } = useAuth();
   const [monthlySummaries, setMonthlySummaries] = useState<MonthlySummary>({
     income: 0,
     fixedExpenses: 0,
     subscriptions: 0,
     debtPayments: 0,
   });
+
+  // Effect to fetch data from Supabase
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user?.id) return;
+      
+      setIsLoading(true);
+      try {
+        // Fetch recurring items
+        const { data: recurringData, error: recurringError } = await supabase
+          .from('recurring_items')
+          .select('*')
+          .eq('user_id', user.id);
+
+        if (recurringError) {
+          throw new Error(recurringError.message);
+        }
+
+        // Fetch debt accounts
+        const { data: debtData, error: debtError } = await supabase
+          .from('debt_accounts')
+          .select('*')
+          .eq('user_id', user.id);
+
+        if (debtError) {
+          throw new Error(debtError.message);
+        }
+
+        // Transform the data to match our types
+        const formattedRecurringItems: RecurringItem[] = recurringData?.map(item => ({
+          id: item.id,
+          name: item.name,
+          type: item.type,
+          amount: item.amount,
+          frequency: item.frequency,
+          startDate: item.start_date ? new Date(item.start_date) : undefined,
+          lastRenewalDate: item.last_renewal_date ? new Date(item.last_renewal_date) : undefined,
+          endDate: item.end_date ? new Date(item.end_date) : undefined,
+          semiMonthlyFirstPayDate: item.semi_monthly_first_pay_date ? new Date(item.semi_monthly_first_pay_date) : undefined,
+          semiMonthlySecondPayDate: item.semi_monthly_second_pay_date ? new Date(item.semi_monthly_second_pay_date) : undefined,
+          userId: item.user_id,
+          createdAt: new Date(item.created_at),
+          categoryId: item.category_id,
+          notes: item.notes
+        })) || [];
+
+        const formattedDebtAccounts: DebtAccount[] = debtData?.map(debt => ({
+          id: debt.id,
+          name: debt.name,
+          type: debt.type,
+          balance: debt.balance,
+          apr: debt.apr,
+          minimumPayment: debt.minimum_payment,
+          paymentDayOfMonth: debt.payment_day_of_month,
+          paymentFrequency: debt.payment_frequency,
+          userId: debt.user_id,
+          createdAt: new Date(debt.created_at)
+        })) || [];
+
+        setRecurringItems(formattedRecurringItems);
+        setDebtAccounts(formattedDebtAccounts);
+      } catch (error) {
+        console.error('Error fetching recurring data:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load recurring items and debt accounts.',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user?.id, toast]);
 
   // Effect for Unified List (for display)
   useEffect(() => {
@@ -172,15 +232,23 @@ export function RecurringManager() {
          status = "Ended";
       } else if (isSameDay(nextOccurrenceDate, today)) {
         status = "Today";
-      } else if (nextOccurrenceDate < today) { // If calculated next is still past (e.g. for ended semi-monthly)
+      } else if (nextOccurrenceDate < today) {
         status = "Ended";
       }
       
       return {
-        id: item.id, name: item.name, itemDisplayType: item.type, amount: item.amount,
-        frequency: item.frequency, nextOccurrenceDate, status, isDebt: false,
-        endDate: item.endDate, semiMonthlyFirstPayDate: item.semiMonthlyFirstPayDate,
-        semiMonthlySecondPayDate: item.semiMonthlySecondPayDate, notes: item.notes,
+        id: item.id, 
+        name: item.name, 
+        itemDisplayType: item.type, 
+        amount: item.amount,
+        frequency: item.frequency, 
+        nextOccurrenceDate, 
+        status, 
+        isDebt: false,
+        endDate: item.endDate, 
+        semiMonthlyFirstPayDate: item.semiMonthlyFirstPayDate,
+        semiMonthlySecondPayDate: item.semiMonthlySecondPayDate, 
+        notes: item.notes,
         categoryId: item.categoryId,
         source: 'recurring',
       };
@@ -189,10 +257,15 @@ export function RecurringManager() {
     const transformedDebtItems: UnifiedRecurringListItem[] = debtAccounts.map(debt => {
       const nextOccurrenceDate = calculateNextDebtOccurrence(debt);
       return {
-        id: debt.id, name: `${debt.name} (Payment)`, itemDisplayType: 'debt-payment',
-        amount: debt.minimumPayment, frequency: debt.paymentFrequency, nextOccurrenceDate,
+        id: debt.id, 
+        name: `${debt.name} (Payment)`, 
+        itemDisplayType: 'debt-payment',
+        amount: debt.minimumPayment, 
+        frequency: debt.paymentFrequency, 
+        nextOccurrenceDate,
         status: isSameDay(nextOccurrenceDate, today) ? "Today" : "Upcoming",
-        isDebt: true, source: 'debt',
+        isDebt: true, 
+        source: 'debt',
       };
     });
 
@@ -299,7 +372,6 @@ export function RecurringManager() {
           paymentDateForMonth = setDate(debtCreationMonthStart, debt.paymentDayOfMonth);
       }
 
-
       let checkDate = new Date(paymentDateForMonth);
       if (checkDate < currentMonthStart) { // if payment day already passed for current month's start, advance to next cycle start
           switch (debt.paymentFrequency) {
@@ -323,7 +395,6 @@ export function RecurringManager() {
             // so we break after the first valid one.
             case "monthly": 
             case "annually":
-            case "other":
             default: 
                 checkDate = addMonths(checkDate, 1); // Effectively break by moving out of current month
                 break; 
@@ -341,20 +412,72 @@ export function RecurringManager() {
 
   }, [recurringItems, debtAccounts]);
 
-
   const handleAddRecurringItem = (newItemData: Omit<RecurringItem, "id" | "userId" | "createdAt">) => {
+    if (!user?.id) return;
+    
+    // Create a new item with a temporary ID
     const newItem: RecurringItem = {
       ...newItemData,
       id: `rec-${Date.now()}`,
-      userId: "1", 
+      userId: user.id, 
       createdAt: new Date(),
-      categoryId: newItemData.categoryId || null,
+      categoryId: newItemData.categoryId || undefined,
     };
+    
+    // Add to local state
     setRecurringItems((prevItems) => [...prevItems, newItem]);
+    
+    // Save to Supabase
+    const saveToSupabase = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('recurring_items')
+          .insert({
+            name: newItem.name,
+            type: newItem.type,
+            amount: newItem.amount,
+            frequency: newItem.frequency,
+            start_date: newItem.startDate,
+            last_renewal_date: newItem.lastRenewalDate,
+            end_date: newItem.endDate,
+            semi_monthly_first_pay_date: newItem.semiMonthlyFirstPayDate,
+            semi_monthly_second_pay_date: newItem.semiMonthlySecondPayDate,
+            user_id: user.id,
+            category_id: newItem.categoryId
+          })
+          .select()
+          .single();
+          
+        if (error) throw error;
+        
+        // Update the local state with the real ID from Supabase
+        if (data) {
+          setRecurringItems(prevItems => 
+            prevItems.map(item => 
+              item.id === newItem.id ? {
+                ...item,
+                id: data.id
+              } : item
+            )
+          );
+        }
+      } catch (error) {
+        console.error('Error saving recurring item:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to save recurring item to database.',
+          variant: 'destructive'
+        });
+      }
+    };
+    
+    saveToSupabase();
+    
     toast({
       title: "Recurring Item Added",
       description: `"${newItem.name}" has been successfully added.`,
     });
+    
     setIsAddDialogOpen(false);
   };
 
@@ -362,7 +485,31 @@ export function RecurringManager() {
     if (source === 'recurring') {
       const itemToDelete = recurringItems.find(item => item.id === itemId);
       if (!itemToDelete) return;
+      
+      // Remove from local state
       setRecurringItems((prevItems) => prevItems.filter(item => item.id !== itemId));
+      
+      // Delete from Supabase
+      const deleteFromSupabase = async () => {
+        try {
+          const { error } = await supabase
+            .from('recurring_items')
+            .delete()
+            .eq('id', itemId);
+            
+          if (error) throw error;
+        } catch (error) {
+          console.error('Error deleting recurring item:', error);
+          toast({
+            title: 'Error',
+            description: 'Failed to delete recurring item from database.',
+            variant: 'destructive'
+          });
+        }
+      };
+      
+      deleteFromSupabase();
+      
       toast({
         title: "Recurring Item Deleted",
         description: `"${itemToDelete.name}" has been deleted.`,
@@ -371,32 +518,83 @@ export function RecurringManager() {
     }
   };
   
-  const handleUpdateRecurringItem = (updatedItem: RecurringItem) => {
+  const handleUpdateRecurringItem = async (updatedItem: RecurringItem) => {
+    if (!user?.id) return;
+    
+    // Update in local state first for immediate UI feedback
     setRecurringItems(prevItems => 
         prevItems.map(item => item.id === updatedItem.id ? updatedItem : item)
     );
-    toast({
+    
+    try {
+      // Save to Supabase
+      const { error } = await supabase
+        .from('recurring_items')
+        .update({
+          name: updatedItem.name,
+          type: updatedItem.type,
+          amount: updatedItem.amount,
+          frequency: updatedItem.frequency,
+          start_date: updatedItem.startDate,
+          last_renewal_date: updatedItem.lastRenewalDate,
+          end_date: updatedItem.endDate,
+          semi_monthly_first_pay_date: updatedItem.semiMonthlyFirstPayDate,
+          semi_monthly_second_pay_date: updatedItem.semiMonthlySecondPayDate,
+          category_id: updatedItem.categoryId,
+          notes: updatedItem.notes
+        })
+        .eq('id', updatedItem.id);
+        
+      if (error) throw error;
+      
+      toast({
         title: "Recurring Item Updated",
         description: `"${updatedItem.name}" has been updated.`,
-    });
+      });
+    } catch (error) {
+      console.error('Error updating recurring item:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update recurring item in database.',
+        variant: 'destructive'
+      });
+    }
   };
 
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Recurring Items</h2>
+            <p className="text-muted-foreground">Manage your recurring income, expenses, and subscriptions.</p>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="pt-6 flex justify-center items-center min-h-[300px]">
+            <div className="text-center">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+              <p className="text-muted-foreground">Loading your recurring items...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <RecurringSummaryCards summaries={monthlySummaries} />
-
-      <div className="flex justify-end">
-        <AddRecurringItemDialog
-          isOpen={isAddDialogOpen}
-          onOpenChange={setIsAddDialogOpen}
-          onRecurringItemAdded={handleAddRecurringItem}
-        >
-          <Button onClick={() => setIsAddDialogOpen(true)}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Add Recurring Item
-          </Button>
-        </AddRecurringItemDialog>
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Recurring Items</h2>
+          <p className="text-muted-foreground">Manage your recurring income, expenses, and subscriptions.</p>
+        </div>
+        <Button onClick={() => setIsAddDialogOpen(true)}>
+          <PlusCircle className="mr-2 h-4 w-4" /> Add Item
+        </Button>
       </div>
+
+      <RecurringSummaryCards summaries={monthlySummaries} />
 
       <Tabs defaultValue="list" className="w-full">
         <TabsList className="grid w-full grid-cols-2 md:w-[300px]">
@@ -410,23 +608,79 @@ export function RecurringManager() {
               <CardDescription>View and manage your scheduled income, expenses, and debt payments.</CardDescription>
             </CardHeader>
             <CardContent>
-              <RecurringList
-                items={unifiedList}
-                onDeleteItem={handleDeleteRecurringItem}
-                onEditItem={(itemToEdit) => { 
-                  const originalItem = recurringItems.find(ri => ri.id === itemToEdit.id);
-                  if (originalItem) {
-                     toast({ title: "Edit (Full Implementation Coming Soon)", description: `Editing "${itemToEdit.name}" would happen here. For now, delete and re-add if complex changes are needed.`})
-                  }
-                }}
-              />
+              {unifiedList.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground mb-4">No recurring items found.</p>
+                  <Button onClick={() => setIsAddDialogOpen(true)}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Your First Item
+                  </Button>
+                </div>
+              ) : (
+                <RecurringList
+                  items={unifiedList}
+                  onDeleteItem={handleDeleteRecurringItem}
+                  onEditItem={(item) => { 
+                    const originalItem = recurringItems.find(ri => ri.id === item.id);
+                    if (originalItem) {
+                      setItemToEdit(originalItem);
+                      setIsEditDialogOpen(true);
+                      setDialogKey(prev => prev + 1); // Force dialog recreation
+                    }
+                  }}
+                />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
-         <TabsContent value="calendar">
-            <RecurringCalendarView items={unifiedList} />
+        <TabsContent value="calendar">
+          <RecurringCalendarView items={unifiedList} />
         </TabsContent>
       </Tabs>
+
+      <AddRecurringItemDialog
+        key={`add-dialog-${dialogKey}`}
+        isOpen={isAddDialogOpen}
+        onOpenChange={(open) => {
+          setIsAddDialogOpen(open);
+          if (!open) {
+            setDialogKey(prev => prev + 1); // Force dialog recreation when closed
+          }
+        }}
+        onRecurringItemAdded={handleAddRecurringItem}
+      >
+        <Button type="button">Add Recurring Item</Button>
+      </AddRecurringItemDialog>
+
+      {/* Edit Recurring Item Dialog */}
+      {itemToEdit && (
+        <AddRecurringItemDialog
+          key={`edit-dialog-${dialogKey}`}
+          isOpen={isEditDialogOpen}
+          onOpenChange={(open) => {
+            setIsEditDialogOpen(open);
+            if (!open) {
+              setItemToEdit(null);
+              setDialogKey(prev => prev + 1); // Force dialog recreation when closed
+            }
+          }}
+          initialType={itemToEdit.type}
+          initialValues={itemToEdit}
+          onRecurringItemAdded={(updatedItemData) => {
+            // Create updated item with original ID and creation date
+            const updatedItem: RecurringItem = {
+              ...updatedItemData as RecurringItem,
+              id: itemToEdit.id,
+              userId: itemToEdit.userId,
+              createdAt: itemToEdit.createdAt
+            };
+            
+            handleUpdateRecurringItem(updatedItem);
+            setIsEditDialogOpen(false);
+          }}
+        >
+          <Button type="button">Edit Recurring Item</Button>
+        </AddRecurringItemDialog>
+      )}
     </div>
   );
 }
