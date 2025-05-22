@@ -35,40 +35,57 @@ export function useOnboarding() {
           .eq('user_id', user.id)
           .single();
 
+        if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is 'not found' which is expected for new users
+          console.error("Error fetching user preferences:", fetchError);
+          throw new Error(`Failed to fetch user preferences: ${fetchError.message}`);
+        }
+
         // Initialize the setup_progress object or use existing one
         let setupProgress = data?.setup_progress || {};
         
         // Set onboardingCompleted to true
         setupProgress.onboardingCompleted = true;
 
+        // Prepare the upsert data
+        const upsertData = {
+          user_id: user.id,
+          setup_progress: setupProgress
+        };
+
+        // Add default values only for new records
+        if (!data) {
+          Object.assign(upsertData, {
+            currency: 'USD',
+            date_format: 'MM/DD/YYYY',
+            theme: 'system',
+            hide_balances: false,
+            email_notifications: true,
+            browser_notifications: true,
+            mobile_notifications: false
+          });
+        }
+
         // Update or insert the record
         const { error: updateError } = await supabase
           .from('user_preferences')
-          .upsert({
-            user_id: user.id,
-            setup_progress: setupProgress,
-            // Set default values for new records
-            ...(data ? {} : { 
-              currency: 'USD',
-              date_format: 'MM/DD/YYYY',
-              theme: 'system',
-              hide_balances: false,
-              email_notifications: true,
-              browser_notifications: true,
-              mobile_notifications: false
-            })
-          }, { onConflict: 'user_id' });
+          .upsert(upsertData, { onConflict: 'user_id' });
 
         if (updateError) {
           console.error("Error updating onboarding status:", updateError);
-          return;
+          throw new Error(`Failed to update onboarding status: ${updateError.message}`);
         }
 
         // Update local state
         setShowOnboarding(false);
+        
+        return { success: true };
       } catch (err) {
         console.error("Failed to save onboarding status:", err);
+        throw err; // Re-throw to allow handling by the caller
       }
+    } else {
+      console.error("Cannot complete onboarding: No user ID available");
+      throw new Error("User not authenticated");
     }
   };
 
